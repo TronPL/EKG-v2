@@ -1,39 +1,67 @@
+from io_utils import load_csv
+from preprocessing import preprocess
+from rpeaks import get_rpeaks
+from features import rr_intervals
+
+from arrhythmia.basic import detect_tachy_brady, detect_af
+from arrhythmia.ventricular import detect_pvc, detect_bigeminy_trigeminy
+from arrhythmia.rhythm import detect_pause
+from visualization import plot_ecg
+from arrhythmia.supraventricular import detect_pac, detect_sveb, detect_svt
+
 from config import FS
 
-from utils.csv_loader import load_ecg_csv
 
-from processing.filters import bandpass_filter
-from processing.qrs_detection import detect_r_peaks
-from processing.rr_analysis import compute_hr, compute_hrv
-from processing.arrhythmia_detection import detect_arrhythmias
+def run(path):
+    time, ecg = load_csv(path)
 
-from visualization.plot_ecg import plot_ecg
+    cleaned = preprocess(ecg, FS)
+    r_peaks = get_rpeaks(cleaned, FS)
+    
+    rr, hr = rr_intervals(r_peaks, FS)
+
+    results = []
+
+    # rytm
+    results += detect_tachy_brady(hr)
+    results += detect_af(rr)
+
+    # komorowe
+    pvc = detect_pvc(rr)
+    patterns = detect_bigeminy_trigeminy(rr)
+
+    results += pvc
+    results += patterns
+
+    # nadkomorowe
+    results += detect_pac(rr)
+    results += detect_sveb(rr)
+    results += detect_svt(hr, rr)
+
+    # pauzy
+    results += detect_pause(rr)
+
+    # =========================
+    # VISUALIZATION
+    # =========================
+    plot_ecg(
+        time=time,
+        ecg=cleaned,
+        r_peaks=r_peaks,
+        events=results
+    )
+
+    return {
+        "r_peaks": r_peaks,
+        "results": results,
+        "rr": rr,
+        "hr": hr
+    }
 
 
-# LOAD
-time, voltage = load_ecg_csv("data/ecg (2).csv")
+if __name__ == "__main__":
+    result = run("dane/holter_10min_500Hz_arrhythmia.csv")
 
-# FILTER
-filtered = bandpass_filter(voltage, FS)
-
-# R-PEAKS
-r_peaks = detect_r_peaks(filtered, FS)
-
-# HR / HRV
-hr = compute_hr(r_peaks, FS)
-hrv = compute_hrv(r_peaks, FS)
-
-# ANALYSIS + EVENTS
-results, events = detect_arrhythmias(hr, hrv, r_peaks, FS)
-
-# OUTPUT
-print("\n===== ECG ANALYSIS =====")
-print(f"Detected beats: {len(r_peaks)}")
-print(f"Mean HR: {hr.mean():.2f} BPM")
-
-print("\nDetected Conditions:")
-for r in results:
-    print("-", r)
-
-# PLOT
-plot_ecg(filtered, r_peaks, FS, events)
+    print("=== DETECTED EVENTS ===")
+    for r in result["results"]:
+        print(r)
