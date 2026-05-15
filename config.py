@@ -1,0 +1,1 @@
+FS = 500  # sampling rate Hz
