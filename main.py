@@ -8,7 +8,7 @@ from arrhythmia.ventricular import detect_pvc, detect_bigeminy_trigeminy
 from arrhythmia.rhythm import detect_pause
 from visualization import plot_ecg
 from arrhythmia.supraventricular import detect_pac, detect_sveb, detect_svt
-
+from visualization import *
 from config import FS
 
 
@@ -50,7 +50,8 @@ def run(path):
         r_peaks=r_peaks,
         events=results
     )
-
+    plot_rr(time=time,r_peaks=r_peaks)
+    
     return {
         "r_peaks": r_peaks,
         "results": results,

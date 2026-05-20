@@ -1,7 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
+def plot_rr(time,r_peaks):
+    
+    drpeaks = np.diff(time[r_peaks])
+    plt.plot(drpeaks)
+    plt.show()
+    
+    
 def plot_ecg(time, ecg, r_peaks=None, events=None):
     plt.figure(figsize=(15, 5))
     plt.plot(time, ecg, label="ECG", linewidth=1)
