@@ -8,7 +8,7 @@ def plot_rr(time,r_peaks):
     plt.show()
     
     
-def plot_ecg(time, ecg, r_peaks=None, events=None):
+def plot_ecg(time, ecg, r_peaks=None, events=None, output_path="static/plots/ecg_plot.png"):
     plt.figure(figsize=(15, 5))
     plt.plot(time, ecg, label="ECG", linewidth=1)
 
@@ -53,6 +53,7 @@ def plot_ecg(time, ecg, r_peaks=None, events=None):
     plt.title("ECG with detected arrhythmias")
     plt.xlabel("Time (s)")
     plt.ylabel("Amplitude")
+    plt.savefig(output_path)
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    # plt.show()

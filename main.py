@@ -6,53 +6,45 @@ from features import rr_intervals
 from arrhythmia.basic import detect_tachy_brady, detect_af
 from arrhythmia.ventricular import detect_pvc, detect_bigeminy_trigeminy
 from arrhythmia.rhythm import detect_pause
-from visualization import plot_ecg
 from arrhythmia.supraventricular import detect_pac, detect_sveb, detect_svt
-from visualization import *
+from visualization import plot_ecg
+
 from config import FS
 
 
 def run(path):
+
     time, ecg = load_csv(path)
 
     cleaned = preprocess(ecg, FS)
+
     r_peaks = get_rpeaks(cleaned, FS)
-    
+
     rr, hr = rr_intervals(r_peaks, FS)
 
     results = []
 
-    # rytm
+    # rhythm
     results += detect_tachy_brady(hr)
     results += detect_af(rr)
 
-    # komorowe
-    pvc = detect_pvc(rr)
-    patterns = detect_bigeminy_trigeminy(rr)
+    # ventricular
+    results += detect_pvc(rr)
+    results += detect_bigeminy_trigeminy(rr)
 
-    results += pvc
-    results += patterns
-
-    # nadkomorowe
+    # supraventricular
     results += detect_pac(rr)
     results += detect_sveb(rr)
     results += detect_svt(hr, rr)
 
-    # pauzy
+    # pauses
     results += detect_pause(rr)
 
-    # =========================
-    # VISUALIZATION
-    # =========================
-    plot_ecg(
-        time=time,
-        ecg=cleaned,
-        r_peaks=r_peaks,
-        events=results
-    )
-    plot_rr(time=time,r_peaks=r_peaks)
-    
+    plot_ecg(time, cleaned, r_peaks, results)
+
     return {
+        "time": time,
+        "ecg": cleaned,
         "r_peaks": r_peaks,
         "results": results,
         "rr": rr,
@@ -61,7 +53,7 @@ def run(path):
 
 
 if __name__ == "__main__":
-    result = run("dane/holter_10min_500Hz_arrhythmia.csv")
+    result = run("uploads/ecg.csv")
 
     print("=== DETECTED EVENTS ===")
     for r in result["results"]:

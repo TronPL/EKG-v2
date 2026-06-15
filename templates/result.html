@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>Wyniki analizy EKG</h1>
+
+<img src="static/plots/ecg_plot.png" width="1000">
+
+<h2>Zdarzenia</h2>
+
+<ul>
+{% for e in results %}
+    <li>{{ e }}</li>
+{% endfor %}
+</ul>
+
+</body>
+</html>
