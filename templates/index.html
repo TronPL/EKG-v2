@@ -1,17 +1,20 @@
 <!DOCTYPE html>
-<html>
+<html lang="pl">
 <body>
 
 <h1>ECG Analyzer</h1>
 
-<form action="/analyze" method="post" enctype="multipart/form-data">
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <p role="alert">{{ message }}</p>
+  {% endfor %}
+{% endwith %}
 
-    <input type="file" name="csv">
-
-    <button type="submit">
-        Analyze
-    </button>
-
+<form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
+    <label for="csv">Plik EKG (CSV/TXT)</label>
+    <input id="csv" type="file" name="csv" accept=".csv,.txt" required>
+    <p>Format: kolumna czasu i kolumna amplitudy; separator <code>;</code> albo <code>,</code>. Maks. 20 MB.</p>
+    <button type="submit">Analyze</button>
 </form>
 
 </body>

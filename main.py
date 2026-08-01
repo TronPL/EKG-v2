@@ -1,4 +1,4 @@
-from io_utils import load_csv
+from io_utils import infer_sampling_rate, load_csv
 from preprocessing import preprocess
 from rpeaks import get_rpeaks
 from features import rr_intervals
@@ -12,15 +12,16 @@ from visualization import plot_ecg
 from config import FS
 
 
-def run(path):
+def run(path, plot_path="static/plots/ecg_plot.png"):
 
     time, ecg = load_csv(path)
+    sampling_rate = infer_sampling_rate(time, FS)
 
-    cleaned = preprocess(ecg, FS)
+    cleaned = preprocess(ecg, sampling_rate)
 
-    r_peaks = get_rpeaks(cleaned, FS)
+    r_peaks = get_rpeaks(cleaned, sampling_rate)
 
-    rr, hr = rr_intervals(r_peaks, FS)
+    rr, hr = rr_intervals(r_peaks, sampling_rate)
 
     results = []
 
@@ -40,7 +41,8 @@ def run(path):
     # pauses
     results += detect_pause(rr)
 
-    plot_ecg(time, cleaned, r_peaks, results)
+    if plot_path:
+        plot_ecg(time, cleaned, r_peaks, results, output_path=plot_path)
 
     return {
         "time": time,
@@ -48,7 +50,8 @@ def run(path):
         "r_peaks": r_peaks,
         "results": results,
         "rr": rr,
-        "hr": hr
+        "hr": hr,
+        "sampling_rate": sampling_rate,
     }
 
 

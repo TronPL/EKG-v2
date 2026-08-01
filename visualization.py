@@ -1,59 +1,53 @@
-import numpy as np
-import matplotlib.pyplot as plt
+from pathlib import Path
 
-def plot_rr(time,r_peaks):
-    
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+def plot_rr(time, r_peaks):
     drpeaks = np.diff(time[r_peaks])
     plt.plot(drpeaks)
     plt.show()
-    
-    
+
+
 def plot_ecg(time, ecg, r_peaks=None, events=None, output_path="static/plots/ecg_plot.png"):
-    plt.figure(figsize=(15, 5))
-    plt.plot(time, ecg, label="ECG", linewidth=1)
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(15, 5))
+    ax.plot(time, ecg, label="ECG", linewidth=1)
 
-    # =========================
-    # R-peaks
-    # =========================
     if r_peaks is not None:
-        plt.scatter(time[r_peaks], ecg[r_peaks],
-                    color="red", s=20, label="R-peaks")
+        ax.scatter(time[r_peaks], ecg[r_peaks], color="red", s=20, label="R-peaks")
 
-    # =========================
-    # EVENTS (PVC, pause etc.)
-    # events format: ("PVC", index)
-    # =========================
     if events:
         for event in events:
-            if len(event) == 2:
+            if isinstance(event, tuple) and len(event) == 2:
                 name, idx = event
-
-                if idx < len(time):
-                    plt.axvline(x=time[r_peaks[idx-1]], linestyle="--", alpha=0.5)
-
-                    plt.text(
-                        time[r_peaks[idx-1]],
+                # An RR interval at index i ends at the R-peak i + 1.
+                peak_idx = idx + 1
+                if r_peaks is not None and 0 <= peak_idx < len(r_peaks):
+                    event_time = time[r_peaks[peak_idx]]
+                    ax.axvline(x=event_time, linestyle="--", alpha=0.5)
+                    ax.text(
+                        event_time,
                         np.max(ecg),
                         name,
                         rotation=90,
                         verticalalignment="bottom",
-                        fontsize=8
+                        fontsize=8,
                     )
-
-            # simple labels like "Tachycardia"
             elif isinstance(event, str):
-                plt.text(
-                    time[len(time)//2],
+                ax.text(
+                    time[len(time) // 2],
                     np.max(ecg),
                     event,
                     fontsize=12,
-                    color="blue"
+                    color="blue",
                 )
 
-    plt.title("ECG with detected arrhythmias")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Amplitude")
-    plt.savefig(output_path)
-    plt.legend()
-    plt.tight_layout()
-    # plt.show()
+    ax.set_title("ECG with detected arrhythmias")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Amplitude")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)

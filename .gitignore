@@ -1,2 +1,8 @@
 /.venv
-/__pycache__
+venv
+__pycache__/
+*.py[cod]
+uploads/*
+!uploads/.gitkeep
+static/plots/*
+!static/plots/.gitkeep

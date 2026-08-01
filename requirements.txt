@@ -1,0 +1,5 @@
+flask
+matplotlib
+neurokit2
+numpy
+pandas
