@@ -13,9 +13,17 @@
 <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
     <label for="csv">Plik EKG (CSV/TXT)</label>
     <input id="csv" type="file" name="csv" accept=".csv,.txt" required>
-    <p>Format: kolumna czasu i kolumna amplitudy; separator <code>;</code> albo <code>,</code>. Maks. 20 MB.</p>
-    <button type="submit">Analyze</button>
+    <p>Maks. 20 MB. Dla pojedynczego kanału: czas + amplituda. Dla ADS1298: czas + 8 kanałów.</p>
+    <button type="submit">Analizuj</button>
 </form>
+
+<h2>Format ADS1298 dla 12 odprowadzeń</h2>
+<p>Program oczekuje kolejno: <code>time;CH1;CH2;CH3;CH4;CH5;CH6;CH7;CH8</code>. Można też użyć nagłówków <code>time;I;II;V1;V2;V3;V4;V5;V6</code>.</p>
+<ul>
+    <li>CH1 = I, CH2 = II</li>
+    <li>CH3–CH8 = V1–V6, mierzone względem WCT</li>
+    <li>Program wylicza III, aVR, aVL i aVF</li>
+</ul>
 
 </body>
 </html>

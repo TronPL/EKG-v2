@@ -37,6 +37,22 @@ Przykład:
 0.004;0.01017
 ```
 
+### ADS1298: 8 kanałów → 12 odprowadzeń
+
+Plik wielokanałowy zawiera dziewięć kolumn: czas i osiem kanałów ADS1298. Dopuszczalne są dwa nagłówki:
+
+```text
+time;CH1;CH2;CH3;CH4;CH5;CH6;CH7;CH8
+```
+
+albo:
+
+```text
+time;I;II;V1;V2;V3;V4;V5;V6
+```
+
+Wymagane przypisanie sprzętowe to CH1 = I, CH2 = II oraz CH3–CH8 = V1–V6 względem WCT. Aplikacja oblicza cyfrowo III, aVR, aVL i aVF z I oraz II. Pełny opis połączeń, wzorów i ograniczeń znajduje się w [docs/ads1298_12lead.md](docs/ads1298_12lead.md).
+
 ## Obecny zakres analizy
 
 Aplikacja oznacza potencjalne: tachykardię, bradykardię, nieregularność RR sugerującą AF, PVC, PAC/SVEB, SVT, pauzy, bigeminię i trigeminię. To są reguły demonstracyjne, które wymagają walidacji na opisanych danych klinicznych.
@@ -48,3 +64,5 @@ Aplikacja oznacza potencjalne: tachykardię, bradykardię, nieregularność RR s
 - `arrhythmia/` — reguły detekcji,
 - `dane/` — przykładowe zapisy EKG,
 - `templates/` — widoki strony.
+- `leads.py` — definicje i wyliczanie standardowych 12 odprowadzeń,
+- `docs/ads1298_12lead.md` — konfiguracja ADS1298 dla 12 odprowadzeń.

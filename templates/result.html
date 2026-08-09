@@ -4,12 +4,28 @@
 
 <h1>Wyniki analizy EKG</h1>
 
-<p>Wykryte załamki R: {{ r_peak_count }} | Częstotliwość próbkowania: {{ "%.2f"|format(sampling_rate) }} Hz</p>
+<p>Wykryte załamki R: {{ r_peak_count }} | Częstotliwość próbkowania: {{ "%.2f"|format(sampling_rate) }} Hz | Analiza rytmu: odprowadzenie {{ analysis_lead }}</p>
 
-<img src="{{ plot_url }}" width="1000" alt="Wykres EKG z oznaczonymi zdarzeniami">
+{% if is_twelve_lead %}
+  <h2>Przegląd 12 odprowadzeń</h2>
+  <p>Wykres pokazuje pierwsze 10 sekund. Kanały zapisane bezpośrednio: {{ recorded_leads|join(", ") }}. Pozostałe cztery odprowadzenia są wyliczane cyfrowo.</p>
+  <img src="{{ twelve_lead_plot_url }}" width="1200" alt="Przegląd 12 odprowadzeń EKG">
+
+  <h3>Skąd pochodzi każdy zapis</h3>
+  <table>
+    <thead><tr><th>Odprowadzenie</th><th>Źródło / obliczenie</th><th>Główny widok</th></tr></thead>
+    <tbody>
+    {% for detail in lead_details %}
+      <tr><td>{{ detail.lead }}</td><td>{{ detail.source }}</td><td>{{ detail.view }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
+<h2>Odprowadzenie {{ analysis_lead }} — analiza rytmu</h2>
+<img src="{{ plot_url }}" width="1000" alt="Wykres EKG z oznaczonymi zdarzeniami rytmu">
 
 <h2>Zdarzenia</h2>
-
 <ul>
 {% for e in results %}
     <li>{{ e }}</li>
@@ -18,6 +34,7 @@
 {% endfor %}
 </ul>
 
+<p>Wynik ma charakter techniczno-przesiewowy i wymaga oceny osoby uprawnionej do interpretacji EKG.</p>
 <p><a href="{{ url_for('index') }}">Przeanalizuj kolejny plik</a></p>
 
 </body>

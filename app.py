@@ -6,6 +6,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 from config import ALLOWED_EXTENSIONS, MAX_UPLOAD_SIZE_MB, PLOTS_FOLDER, UPLOAD_FOLDER
+from leads import LEAD_DETAILS
 from main import run
 
 
@@ -45,8 +46,13 @@ def analyze():
     file.save(path)
 
     plot_filename = f"plots/ecg_{analysis_id}.png"
+    twelve_lead_plot_filename = f"plots/twelve_lead_{analysis_id}.png"
     try:
-        result = run(path, plot_path=PLOTS_FOLDER / f"ecg_{analysis_id}.png")
+        result = run(
+            path,
+            plot_path=PLOTS_FOLDER/f"ecg_{analysis_id}.png",
+            twelve_lead_plot_path=PLOTS_FOLDER/f"twelve_lead_{analysis_id}.png",
+        )
     except Exception:
         app.logger.exception("ECG analysis failed")
         path.unlink(missing_ok=True)
@@ -59,6 +65,11 @@ def analyze():
         sampling_rate=result["sampling_rate"],
         r_peak_count=len(result["r_peaks"]),
         plot_url=url_for("static", filename=plot_filename),
+        is_twelve_lead=result["is_twelve_lead"],
+        analysis_lead=result["analysis_lead"],
+        recorded_leads=result["recorded_leads"],
+        twelve_lead_plot_url=url_for("static", filename=twelve_lead_plot_filename),
+        lead_details=LEAD_DETAILS,
     )
 
 
