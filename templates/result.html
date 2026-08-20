@@ -1,41 +1,85 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wynik analizy EKG</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
 <body>
+  <div class="page">
+    <header class="page-header">
+      <h1>Wynik analizy</h1>
+      <a href="{{ url_for('index') }}" class="btn-secondary">&larr; Nowa analiza</a>
+    </header>
 
-<h1>Wyniki analizy EKG</h1>
+    <section class="summary-grid">
+      <div class="summary-card">
+        <span class="summary-label">Częstość próbkowania</span>
+        <span class="summary-value">{{ "%.1f"|format(sampling_rate) }} Hz</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">Wykryte załamki R</span>
+        <span class="summary-value">{{ r_peak_count }}</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">Odprowadzenie analizy rytmu</span>
+        <span class="summary-value">{{ analysis_lead }}</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">Typ zapisu</span>
+        <span class="summary-value">
+          {{ "12-odprowadzeniowy (ADS1298)" if is_twelve_lead else "Jednokanałowy" }}
+        </span>
+      </div>
+    </section>
 
-<p>Wykryte załamki R: {{ r_peak_count }} | Częstotliwość próbkowania: {{ "%.2f"|format(sampling_rate) }} Hz | Analiza rytmu: odprowadzenie {{ analysis_lead }}</p>
+    <section class="results-section">
+      <h2>Wykryte zdarzenia rytmu</h2>
+      {% if results %}
+        <ul class="results-list">
+          {% for event in results %}
+            <li class="result-item">{{ event if event is string else event[0] }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Nie wykryto żadnych nieprawidłowości rytmu.</p>
+      {% endif %}
+    </section>
 
-{% if is_twelve_lead %}
-  <h2>Przegląd 12 odprowadzeń</h2>
-  <p>Wykres pokazuje pierwsze 10 sekund. Kanały zapisane bezpośrednio: {{ recorded_leads|join(", ") }}. Pozostałe cztery odprowadzenia są wyliczane cyfrowo.</p>
-  <img src="{{ twelve_lead_plot_url }}" width="1200" alt="Przegląd 12 odprowadzeń EKG">
+    <section class="plot-section">
+      <h2>Zapis {{ analysis_lead }} z zaznaczonymi zdarzeniami</h2>
+      <img src="{{ plot_url }}" alt="Wykres EKG" class="ecg-plot">
+    </section>
 
-  <h3>Skąd pochodzi każdy zapis</h3>
-  <table>
-    <thead><tr><th>Odprowadzenie</th><th>Źródło / obliczenie</th><th>Główny widok</th></tr></thead>
-    <tbody>
-    {% for detail in lead_details %}
-      <tr><td>{{ detail.lead }}</td><td>{{ detail.source }}</td><td>{{ detail.view }}</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-{% endif %}
+    {% if is_twelve_lead %}
+    <section class="plot-section">
+      <h2>Podgląd 12 odprowadzeń</h2>
+      <img src="{{ twelve_lead_plot_url }}" alt="12-odprowadzeniowy wykres EKG" class="ecg-plot">
+    </section>
 
-<h2>Odprowadzenie {{ analysis_lead }} — analiza rytmu</h2>
-<img src="{{ plot_url }}" width="1000" alt="Wykres EKG z oznaczonymi zdarzeniami rytmu">
-
-<h2>Zdarzenia</h2>
-<ul>
-{% for e in results %}
-    <li>{{ e }}</li>
-{% else %}
-    <li>Nie wykryto zdarzeń przez obecne reguły analizy.</li>
-{% endfor %}
-</ul>
-
-<p>Wynik ma charakter techniczno-przesiewowy i wymaga oceny osoby uprawnionej do interpretacji EKG.</p>
-<p><a href="{{ url_for('index') }}">Przeanalizuj kolejny plik</a></p>
-
+    <section class="leads-section">
+      <h2>Odprowadzenia w zapisie</h2>
+      <table class="leads-table">
+        <thead>
+          <tr>
+            <th>Odprowadzenie</th>
+            <th>Źródło</th>
+            <th>Widok</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lead in lead_details %}
+            <tr>
+              <td>{{ lead.lead }}</td>
+              <td>{{ lead.source }}</td>
+              <td>{{ lead.view }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+  </div>
 </body>
 </html>

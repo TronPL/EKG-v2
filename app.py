@@ -26,7 +26,7 @@ def allowed_file(filename):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", max_upload_mb=MAX_UPLOAD_SIZE_MB)
 
 
 @app.route("/analyze", methods=["POST"])

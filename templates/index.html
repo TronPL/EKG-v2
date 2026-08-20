@@ -1,29 +1,92 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analiza EKG</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
 <body>
+  <div class="page">
+    <header class="page-header">
+      <div>
+        <h1>Analiza zapisu EKG</h1>
+        <p class="subtitle">Wgraj plik CSV/TXT z holtera lub rejestratora, aby wykryć zaburzenia rytmu.</p>
+      </div>
+    </header>
 
-<h1>ECG Analyzer</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-list">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% for category, message in messages %}
-    <p role="alert">{{ message }}</p>
-  {% endfor %}
-{% endwith %}
+    <form id="upload-form" class="upload-card" action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
+      <label for="csv-input" id="dropzone" class="dropzone">
+        <span id="dropzone-text">Przeciągnij plik tutaj lub kliknij, aby wybrać</span>
+        <span id="file-name" class="file-name"></span>
+      </label>
+      <input id="csv-input" type="file" name="csv" accept=".csv,.txt" required hidden>
 
-<form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
-    <label for="csv">Plik EKG (CSV/TXT)</label>
-    <input id="csv" type="file" name="csv" accept=".csv,.txt" required>
-    <p>Maks. 20 MB. Dla pojedynczego kanału: czas + amplituda. Dla ADS1298: czas + 8 kanałów.</p>
-    <button type="submit">Analizuj</button>
-</form>
+      <div class="upload-actions">
+        <button type="submit" id="submit-btn" class="btn-primary">
+          <span id="btn-text">Analizuj zapis</span>
+          <span id="btn-spinner" class="spinner" hidden></span>
+        </button>
+      </div>
+      <p class="hint">
+        Obsługiwane formaty: pojedynczy kanał (czas + amplituda) lub 8-kanałowy zapis ADS1298
+        (I, II, V1–V6 / CH1–CH8). Maksymalny rozmiar pliku: {{ max_upload_mb }} MB.
+      </p>
+    </form>
+  </div>
 
-<h2>Format ADS1298 dla 12 odprowadzeń</h2>
-<p>Program oczekuje kolejno: <code>time;CH1;CH2;CH3;CH4;CH5;CH6;CH7;CH8</code>. Można też użyć nagłówków <code>time;I;II;V1;V2;V3;V4;V5;V6</code>.</p>
-<ul>
-    <li>CH1 = I, CH2 = II</li>
-    <li>CH3–CH8 = V1–V6, mierzone względem WCT</li>
-    <li>Program wylicza III, aVR, aVL i aVF</li>
-</ul>
+  <script>
+    const input = document.getElementById('csv-input');
+    const dropzone = document.getElementById('dropzone');
+    const dropzoneText = document.getElementById('dropzone-text');
+    const fileNameEl = document.getElementById('file-name');
+    const form = document.getElementById('upload-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const btnText = document.getElementById('btn-text');
+    const btnSpinner = document.getElementById('btn-spinner');
 
+    function showFile(file) {
+      if (file) {
+        dropzoneText.textContent = 'Wybrany plik:';
+        fileNameEl.textContent = file.name;
+      } else {
+        dropzoneText.textContent = 'Przeciągnij plik tutaj lub kliknij, aby wybrać';
+        fileNameEl.textContent = '';
+      }
+    }
+
+    input.addEventListener('change', () => showFile(input.files[0]));
+
+    ['dragover', 'dragleave', 'drop'].forEach((evt) => {
+      dropzone.addEventListener(evt, (e) => e.preventDefault());
+    });
+    dropzone.addEventListener('dragover', () => dropzone.classList.add('dragover'));
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      dropzone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        input.files = e.dataTransfer.files;
+        showFile(file);
+      }
+    });
+
+    form.addEventListener('submit', () => {
+      if (!input.files.length) return;
+      submitBtn.disabled = true;
+      btnText.textContent = 'Analizowanie...';
+      btnSpinner.hidden = false;
+    });
+  </script>
 </body>
 </html>
