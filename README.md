@@ -53,6 +53,12 @@ time;I;II;V1;V2;V3;V4;V5;V6
 
 Wymagane przypisanie sprzętowe to CH1 = I, CH2 = II oraz CH3–CH8 = V1–V6 względem WCT. Aplikacja oblicza cyfrowo III, aVR, aVL i aVF z I oraz II. Pełny opis połączeń, wzorów i ograniczeń znajduje się w [docs/ads1298_12lead.md](docs/ads1298_12lead.md).
 
+## Długie zapisy i Holter 24 h
+
+Silnik przetwarza plik porcjami zamiast wczytywać cały zapis do pamięci, ale nie usuwa źródłowego Holtera — również gdy analiza nie powiedzie się. Plik pozostaje w `uploads/`, a indeks analizy w `analysis/` zapisuje czas i 30-sekundowy kontekst każdego zdarzenia. Do ochrony detekcji R-peaków na granicach bloków używane jest tylko 5 s sygnału przed i po bloku; reguły RR są następnie liczone z pełnej, chronologicznej listy R-peaków. Dzięki temu pauza lub inny rytm przekraczający granicę okien nie jest pomijany ani policzony podwójnie. Załamki R są przechowywane jako czasy, a nie indeksy próbek. Wykres na stronie pokazuje jedynie pierwsze 30 sekund, a dla danych ADS1298 przegląd 12 odprowadzeń pierwsze 10 sekund.
+
+Zapis musi mieć równomierne próbkowanie. Luki w czasie lub znaczny jitter są odrzucane, ponieważ bez podziału na segmenty mogłyby zafałszować RR. Domyślny limit uploadu 20 MB nadal chroni aplikację webową. Dla lokalnego lub świadomie zabezpieczonego wdrożenia można go ustawić przed uruchomieniem, np. `$env:MAX_UPLOAD_SIZE_MB=2048`; wymaga to uprzedniego określenia miejsca na dysku, retencji i kontroli dostępu. Nie należy tylko podnosić limitu dla serwera dostępnego z sieci.
+
 ## Obecny zakres analizy
 
 Aplikacja oznacza potencjalne: tachykardię, bradykardię, nieregularność RR sugerującą AF, PVC, PAC/SVEB, SVT, pauzy, bigeminię i trigeminię. To są reguły demonstracyjne, które wymagają walidacji na opisanych danych klinicznych.

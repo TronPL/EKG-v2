@@ -1,3 +1,4 @@
+import json
 import os
 from uuid import uuid4
 
@@ -5,7 +6,7 @@ from flask import Flask, flash, redirect, render_template, request, url_for
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
-from config import ALLOWED_EXTENSIONS, MAX_UPLOAD_SIZE_MB, PLOTS_FOLDER, UPLOAD_FOLDER
+from config import ANALYSIS_FOLDER, ALLOWED_EXTENSIONS, MAX_UPLOAD_SIZE_MB, PLOTS_FOLDER, UPLOAD_FOLDER
 from leads import LEAD_DETAILS
 from main import run
 
@@ -18,6 +19,7 @@ app.config.update(
 
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 PLOTS_FOLDER.mkdir(parents=True, exist_ok=True)
+ANALYSIS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
 def allowed_file(filename):
@@ -55,15 +57,33 @@ def analyze():
         )
     except Exception:
         app.logger.exception("ECG analysis failed")
-        path.unlink(missing_ok=True)
-        flash("Nie udało się przeanalizować pliku. Sprawdź jego format i dane.", "error")
+        flash("Nie udało się przeanalizować pliku. Zapis źródłowy pozostawiono do weryfikacji formatu i jakości danych.", "error")
         return redirect(url_for("index"))
+
+    manifest = {
+        "analysis_id": analysis_id,
+        "source_file": path.name,
+        "sampling_rate": result["sampling_rate"],
+        "duration_seconds": result["duration_seconds"],
+        "is_twelve_lead": result["is_twelve_lead"],
+        "analysis_lead": result["analysis_lead"],
+        "event_contexts": result["event_contexts"],
+    }
+    try:
+        (ANALYSIS_FOLDER / f"{analysis_id}.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except OSError:
+        app.logger.exception("Could not persist ECG analysis manifest")
+        flash("Analiza została wykonana, ale nie udało się zapisać indeksu kontekstów.", "error")
 
     return render_template(
         "result.html",
-        results=result["results"],
+        event_summary=result["event_summary"],
+        warnings=result["warnings"],
         sampling_rate=result["sampling_rate"],
-        r_peak_count=len(result["r_peaks"]),
+        r_peak_count=result["r_peak_count"],
+        duration_seconds=result["duration_seconds"],
         plot_url=url_for("static", filename=plot_filename),
         is_twelve_lead=result["is_twelve_lead"],
         analysis_lead=result["analysis_lead"],

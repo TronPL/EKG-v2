@@ -6,3 +6,5 @@ uploads/*
 !uploads/.gitkeep
 static/plots/*
 !static/plots/.gitkeep
+analysis/*
+!analysis/.gitkeep

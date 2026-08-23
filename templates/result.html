@@ -23,6 +23,10 @@
         <span class="summary-value">{{ r_peak_count }}</span>
       </div>
       <div class="summary-card">
+        <span class="summary-label">Długość analizowanego zapisu</span>
+        <span class="summary-value">{{ "%.1f"|format(duration_seconds / 3600) }} h</span>
+      </div>
+      <div class="summary-card">
         <span class="summary-label">Odprowadzenie analizy rytmu</span>
         <span class="summary-value">{{ analysis_lead }}</span>
       </div>
@@ -34,12 +38,23 @@
       </div>
     </section>
 
+    {% if warnings %}
+    <section class="results-section">
+      <h2>Uwagi do analizy</h2>
+      <ul class="results-list">
+        {% for warning in warnings %}
+          <li class="result-item">{{ warning }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
     <section class="results-section">
       <h2>Wykryte zdarzenia rytmu</h2>
-      {% if results %}
+      {% if event_summary %}
         <ul class="results-list">
-          {% for event in results %}
-            <li class="result-item">{{ event if event is string else event[0] }}</li>
+          {% for name, count in event_summary %}
+            <li class="result-item">{{ name }}: {{ count }}</li>
           {% endfor %}
         </ul>
       {% else %}
@@ -48,7 +63,7 @@
     </section>
 
     <section class="plot-section">
-      <h2>Zapis {{ analysis_lead }} z zaznaczonymi zdarzeniami</h2>
+      <h2>Podgląd pierwszych 30 s: {{ analysis_lead }}</h2>
       <img src="{{ plot_url }}" alt="Wykres EKG" class="ecg-plot">
     </section>
 

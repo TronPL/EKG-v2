@@ -1,4 +1,5 @@
 from pathlib import Path
+from collections.abc import Mapping
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +23,20 @@ def plot_ecg(time, ecg, r_peaks=None, events=None, output_path="static/plots/ecg
 
     if events:
         for event in events:
-            if isinstance(event, tuple) and len(event) == 2:
+            if isinstance(event, Mapping):
+                name = event["name"]
+                event_time = event["start_time"]
+                if time[0] <= event_time <= time[-1]:
+                    ax.axvline(x=event_time, linestyle="--", alpha=0.5)
+                    ax.text(
+                        event_time,
+                        np.max(ecg),
+                        name,
+                        rotation=90,
+                        verticalalignment="bottom",
+                        fontsize=8,
+                    )
+            elif isinstance(event, tuple) and len(event) == 2:
                 name, idx = event
                 # An RR interval at index i ends at the R-peak i + 1.
                 peak_idx = idx + 1
