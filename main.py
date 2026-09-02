@@ -9,15 +9,14 @@ from config import (
     ECG_PEAK_CONTEXT_SECONDS,
     ECG_PREVIEW_SECONDS,
     ECG_REVIEW_CONTEXT_SECONDS,
-    MAX_SAMPLING_JITTER_RATIO,
-    TWELVE_LEAD_OVERVIEW_SECONDS,
 )
 from features import rr_intervals_from_times
 from io_utils import iter_ecg_csv_chunks
-from leads import RHYTHM_ANALYSIS_LEAD, build_standard_12_leads
+from leads import RHYTHM_ANALYSIS_LEAD
 from preprocessing import preprocess
 from rpeaks import get_rpeaks
-from visualization import plot_12_lead_ecg, plot_ecg
+from sampling import validate_regular_sampling
+from visualization import plot_ecg
 
 
 def _sampling_rate_from_time(time):
@@ -32,15 +31,7 @@ def _sampling_rate_from_time(time):
 
 
 def _validate_regular_sampling(time, expected_interval):
-    intervals = np.diff(time)
-    if len(intervals) == 0:
-        return
-    relative_error = np.abs(intervals - expected_interval) / expected_interval
-    if np.any(relative_error > MAX_SAMPLING_JITTER_RATIO):
-        raise ValueError(
-            "Zapis ma luki lub nieregularne próbkowanie. "
-            "Przed analizą należy go podzielić na ciągłe fragmenty albo resamplować."
-        )
+    return validate_regular_sampling(time, expected_interval)
 
 
 def _append_preview(preview_time, preview_leads, time, signals, start_time):
@@ -87,7 +78,17 @@ def _window_event_records(peak_times, core_start, core_end):
                 continue
             event_time = float(peak_times[peak_index])
             if core_start <= event_time <= core_end:
-                records.append({"name": name, "start_time": event_time, "end_time": event_time, "kind": "beat"})
+                records.append(
+                    {
+                        "name": name,
+                        "start_time": event_time,
+                        "end_time": event_time,
+                        "kind": "beat",
+                        # Retain the RR interval that led to the candidate so
+                        # a reviewer can see the duration of a flagged pause.
+                        "rr_interval_seconds": float(rr[rr_index]),
+                    }
+                )
         else:
             # Window-wide rules become episodes. Adjacent cores are merged later.
             records.append(
@@ -127,7 +128,58 @@ def _event_summary(events):
     return tuple(counts.items())
 
 
-def run(path, plot_path="static/plots/ecg_plot.png", twelve_lead_plot_path=None):
+def _automatic_report(r_peak_times, rr, hr, events, duration_seconds, sample_count):
+    """Build a transparent summary of the current rule-based analysis.
+
+    The values are intended for triage and review.  They deliberately retain
+    the word ``candidate`` because this version of the engine has no beat
+    morphology or signal-quality classifier.
+    """
+    event_counts = dict(_event_summary(events))
+    episode_seconds = {}
+    for event in events:
+        if event["kind"] == "episode":
+            name = event["name"]
+            episode_seconds[name] = episode_seconds.get(name, 0.0) + max(
+                0.0, event["end_time"] - event["start_time"]
+            )
+
+    pause_durations = [
+        event["rr_interval_seconds"]
+        for event in events
+        if event["name"] == "Pause" and "rr_interval_seconds" in event
+    ]
+    beat_count = len(r_peak_times)
+    candidate_burden_percent = {
+        name: 100 * event_counts.get(name, 0) / beat_count
+        for name in ("PVC", "PAC", "SVEB")
+        if event_counts.get(name, 0)
+    }
+    mean_heart_rate = None
+    if len(r_peak_times) > 1 and r_peak_times[-1] > r_peak_times[0]:
+        mean_heart_rate = float(60 * (len(r_peak_times) - 1) / (r_peak_times[-1] - r_peak_times[0]))
+
+    return {
+        "analysis_scope": "Automatyczne oznaczenia wymagające przeglądu; nie są rozpoznaniami klinicznymi.",
+        "recording": {
+            "duration_seconds": float(duration_seconds),
+            "sample_count": int(sample_count),
+            "regular_timestamps": True,
+        },
+        "heart_rate_bpm": {
+            "minimum": float(np.min(hr)) if len(hr) else None,
+            "mean": mean_heart_rate,
+            "maximum": float(np.max(hr)) if len(hr) else None,
+        },
+        "r_peak_count": int(beat_count),
+        "candidate_counts": event_counts,
+        "candidate_burden_percent": candidate_burden_percent,
+        "episode_seconds": episode_seconds,
+        "longest_pause_seconds": float(max(pause_durations)) if pause_durations else None,
+    }
+
+
+def run(path, plot_path="static/plots/ecg_plot.png"):
     """Analyze a full ECG file in core windows with bilateral context.
 
     The source file remains untouched. Only a small rolling signal buffer,
@@ -208,28 +260,20 @@ def run(path, plot_path="static/plots/ecg_plot.png", twelve_lead_plot_path=None)
 
     results = _merge_adjacent_episodes(window_records, expected_interval * 1.5)
     results = _with_context_bounds(results, start_time, end_time)
+    report = _automatic_report(r_peak_times, rr, hr, results, end_time - start_time, sample_count)
 
     preview_time = np.asarray(preview_time, dtype=float)
     preview_recorded_leads = {
         lead: np.asarray(values, dtype=float) for lead, values in preview_recorded_leads.items()
     }
     is_twelve_lead = input_mode == "ads1298_8_channel"
-    preview_leads = build_standard_12_leads(preview_recorded_leads) if is_twelve_lead else preview_recorded_leads
-    preview_ecg = preprocess(preview_leads[analysis_lead], sampling_rate)
+    preview_ecg = preprocess(preview_recorded_leads[analysis_lead], sampling_rate)
     preview_r_peaks = get_rpeaks(preview_ecg, sampling_rate)
 
     if plot_path:
         preview_end = preview_time[-1]
         preview_events = [event for event in results if event["context_start"] <= preview_end and event["context_end"] >= start_time]
         plot_ecg(preview_time, preview_ecg, preview_r_peaks, preview_events, output_path=plot_path, lead_name=analysis_lead)
-    if is_twelve_lead and twelve_lead_plot_path:
-        plot_12_lead_ecg(
-            preview_time,
-            preview_leads,
-            output_path=twelve_lead_plot_path,
-            overview_seconds=TWELVE_LEAD_OVERVIEW_SECONDS,
-        )
-
     return {
         "time": preview_time,
         "ecg": preview_ecg,
@@ -239,16 +283,19 @@ def run(path, plot_path="static/plots/ecg_plot.png", twelve_lead_plot_path=None)
         "results": results,
         "event_summary": _event_summary(results),
         "event_contexts": results,
+        "report": report,
         "warnings": warnings,
         "rr": rr,
         "hr": hr,
         "sampling_rate": sampling_rate,
+        "start_time": start_time,
+        "end_time": end_time,
         "duration_seconds": end_time - start_time,
         "sample_count": sample_count,
         "is_twelve_lead": is_twelve_lead,
         "analysis_lead": analysis_lead,
         "recorded_leads": tuple(recorded_leads),
-        "leads": preview_leads,
+        "leads": preview_recorded_leads,
     }
 
 

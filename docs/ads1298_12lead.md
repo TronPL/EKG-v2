@@ -70,7 +70,7 @@ Wartości kanałów muszą być już przeliczone przez firmware z kodu ADC na je
 ## Co implementuje aplikacja, a czego nie
 
 - Oblicza cztery odprowadzenia pochodne dokładnie z powyższych wzorów.
-- Tworzy przegląd wszystkich dwunastu odprowadzeń w układzie 3 × 4 z pierwszych 10 sekund nagrania.
+- Tworzy przegląd wszystkich dwunastu odprowadzeń w układzie 3 × 4 wyłącznie dla kontekstu automatycznie oznaczonego zdarzenia.
 - Analizuje rytm na pełnej długości odprowadzenia II.
 - Nie potwierdza klinicznie rozpoznań i nie zastępuje certyfikowanego oprogramowania EKG.
 - Nie może naprawić błędnego podłączenia elektrod, odwróconej polaryzacji, braku WCT ani artefaktów ruchowych.

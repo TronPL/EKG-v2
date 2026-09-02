@@ -9,9 +9,16 @@
 <body>
   <div class="page">
     <header class="page-header">
-      <h1>Wynik analizy</h1>
+      <div>
+        <h1>Wynik analizy</h1>
+        <p class="subtitle">Wstępna selekcja automatyczna — każde oznaczenie wymaga oceny zapisu EKG.</p>
+      </div>
       <a href="{{ url_for('index') }}" class="btn-secondary">&larr; Nowa analiza</a>
     </header>
+
+    <section class="review-notice">
+      {{ report.analysis_scope }} Brak oznaczenia przez algorytm nie wyklucza zaburzenia rytmu.
+    </section>
 
     <section class="summary-grid">
       <div class="summary-card">
@@ -23,8 +30,8 @@
         <span class="summary-value">{{ r_peak_count }}</span>
       </div>
       <div class="summary-card">
-        <span class="summary-label">Długość analizowanego zapisu</span>
-        <span class="summary-value">{{ "%.1f"|format(duration_seconds / 3600) }} h</span>
+        <span class="summary-label">Długość zapisu</span>
+        <span class="summary-value">{{ "%.1f"|format(duration_seconds / 60) }} min</span>
       </div>
       <div class="summary-card">
         <span class="summary-label">Odprowadzenie analizy rytmu</span>
@@ -32,33 +39,60 @@
       </div>
       <div class="summary-card">
         <span class="summary-label">Typ zapisu</span>
-        <span class="summary-value">
-          {{ "12-odprowadzeniowy (ADS1298)" if is_twelve_lead else "Jednokanałowy" }}
-        </span>
+        <span class="summary-value">{{ "12-odprowadzeniowy (ADS1298)" if is_twelve_lead else "Jednokanałowy" }}</span>
       </div>
+    </section>
+
+    <section class="results-section">
+      <h2>Parametry automatycznego raportu</h2>
+      <dl class="metric-grid">
+        <div><dt>HR min. (RR)</dt><dd>{{ "%.1f"|format(report.heart_rate_bpm.minimum) if report.heart_rate_bpm.minimum is not none else "—" }} /min</dd></div>
+        <div><dt>HR śr. (RR)</dt><dd>{{ "%.1f"|format(report.heart_rate_bpm.mean) if report.heart_rate_bpm.mean is not none else "—" }} /min</dd></div>
+        <div><dt>HR maks. (RR)</dt><dd>{{ "%.1f"|format(report.heart_rate_bpm.maximum) if report.heart_rate_bpm.maximum is not none else "—" }} /min</dd></div>
+        <div><dt>Najdłuższa oznaczona pauza</dt><dd>{{ "%.3f"|format(report.longest_pause_seconds) if report.longest_pause_seconds is not none else "—" }} s</dd></div>
+        <div><dt>Spójność znaczników czasu</dt><dd>{{ "prawidłowa" if report.recording.regular_timestamps else "nieprawidłowa" }}</dd></div>
+        <div><dt>Próbki</dt><dd>{{ report.recording.sample_count }}</dd></div>
+      </dl>
+      {% if report.candidate_burden_percent %}
+      <p class="muted">
+        Udział kandydatów: {% for name, value in report.candidate_burden_percent.items() %}{{ name }} {{ "%.2f"|format(value) }}%{% if not loop.last %}; {% endif %}{% endfor %}.
+      </p>
+      {% endif %}
+      {% if report.episode_seconds %}
+      <p class="muted">
+        Łączny czas oznaczeń epizodycznych: {% for name, value in report.episode_seconds.items() %}{{ name }} {{ "%.1f"|format(value) }} s{% if not loop.last %}; {% endif %}{% endfor %}.
+      </p>
+      {% endif %}
     </section>
 
     {% if warnings %}
     <section class="results-section">
       <h2>Uwagi do analizy</h2>
       <ul class="results-list">
-        {% for warning in warnings %}
-          <li class="result-item">{{ warning }}</li>
-        {% endfor %}
+        {% for warning in warnings %}<li class="result-item">{{ warning }}</li>{% endfor %}
       </ul>
     </section>
     {% endif %}
 
     <section class="results-section">
-      <h2>Wykryte zdarzenia rytmu</h2>
-      {% if event_summary %}
-        <ul class="results-list">
-          {% for name, count in event_summary %}
-            <li class="result-item">{{ name }}: {{ count }}</li>
-          {% endfor %}
-        </ul>
+      <h2>Oznaczenia do weryfikacji</h2>
+      {% if events %}
+      <ul class="event-list">
+        {% for event in events %}
+        <li class="event-item">
+          <div>
+            <strong>{{ event.name }}</strong>
+            <span class="muted">czas: {{ "%.3f"|format(event.start_time) }} s{% if event.rr_interval_seconds is defined %}; RR: {{ "%.3f"|format(event.rr_interval_seconds) }} s{% endif %}</span>
+          </div>
+          <div class="event-actions">
+            <span class="status status-{{ event.review_status }}">{{ review_statuses[event.review_status] }}</span>
+            <a class="btn-link" href="{{ url_for('event_review', analysis_id=analysis_id, event_id=event.event_id) }}">Otwórz zapis</a>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
       {% else %}
-        <p class="muted">Nie wykryto żadnych nieprawidłowości rytmu.</p>
+      <p class="muted">Algorytm nie oznaczył zdarzeń do weryfikacji.</p>
       {% endif %}
     </section>
 
@@ -67,34 +101,71 @@
       <img src="{{ plot_url }}" alt="Wykres EKG" class="ecg-plot">
     </section>
 
-    {% if is_twelve_lead %}
-    <section class="plot-section">
-      <h2>Podgląd 12 odprowadzeń</h2>
-      <img src="{{ twelve_lead_plot_url }}" alt="12-odprowadzeniowy wykres EKG" class="ecg-plot">
+    <section class="review-card strip-browser">
+      <h2>Interaktywny przegląd zapisu</h2>
+      <p class="muted">Przewijaj kolejne fragmenty; pobierany jest tylko wybrany odcinek zapisu.</p>
+      <div class="strip-controls">
+        <label for="strip-offset">Czas od początku zapisu</label>
+        <input id="strip-offset" type="range" min="0" max="{{ duration_seconds }}" step="0.1" value="0">
+        <input id="strip-offset-number" type="number" min="0" max="{{ duration_seconds }}" step="0.1" value="0">
+        <label for="strip-window">Szerokość okna</label>
+        <select id="strip-window">
+          <option value="10">10 s</option>
+          <option value="30" selected>30 s</option>
+          <option value="60">60 s</option>
+          <option value="120">120 s</option>
+        </select>
+        <div class="strip-buttons">
+          <button type="button" class="btn-secondary button-link" id="strip-start">Początek</button>
+          <button type="button" class="btn-secondary button-link" id="strip-previous">&larr; Wstecz</button>
+          <button type="button" class="btn-secondary button-link" id="strip-next">Dalej &rarr;</button>
+          <button type="button" class="btn-secondary button-link" id="strip-end">Koniec</button>
+        </div>
+      </div>
+      <p id="strip-range" class="muted" aria-live="polite"></p>
+      <img id="strip-image" alt="Wybrany fragment zapisu EKG" class="ecg-plot">
     </section>
 
-    <section class="leads-section">
-      <h2>Odprowadzenia w zapisie</h2>
-      <table class="leads-table">
-        <thead>
-          <tr>
-            <th>Odprowadzenie</th>
-            <th>Źródło</th>
-            <th>Widok</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for lead in lead_details %}
-            <tr>
-              <td>{{ lead.lead }}</td>
-              <td>{{ lead.source }}</td>
-              <td>{{ lead.view }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
-    {% endif %}
   </div>
+  <script>
+    (() => {
+      const recordDuration = {{ duration_seconds|tojson }};
+      const recordStart = {{ record_start_time|tojson }};
+      const stripUrl = {{ strip_url|tojson }};
+      const slider = document.getElementById('strip-offset');
+      const number = document.getElementById('strip-offset-number');
+      const windowSelect = document.getElementById('strip-window');
+      const image = document.getElementById('strip-image');
+      const rangeLabel = document.getElementById('strip-range');
+
+      function windowSeconds() {
+        return Math.min(Number(windowSelect.value), recordDuration);
+      }
+
+      function maximumOffset() {
+        return Math.max(0, recordDuration - windowSeconds());
+      }
+
+      function updateStrip(offset) {
+        const safeOffset = Math.min(Math.max(Number(offset) || 0, 0), maximumOffset());
+        slider.max = maximumOffset();
+        number.max = maximumOffset();
+        slider.value = safeOffset;
+        number.value = safeOffset.toFixed(1);
+        const window = windowSeconds();
+        rangeLabel.textContent = `Fragment: ${safeOffset.toFixed(1)}–${(safeOffset + window).toFixed(1)} s od początku (czas zapisu ${((recordStart + safeOffset)).toFixed(3)}–${(recordStart + safeOffset + window).toFixed(3)} s).`;
+        image.src = `${stripUrl}?offset=${encodeURIComponent(safeOffset.toFixed(3))}&window=${encodeURIComponent(window)}&v=${Date.now()}`;
+      }
+
+      slider.addEventListener('change', () => updateStrip(slider.value));
+      number.addEventListener('change', () => updateStrip(number.value));
+      windowSelect.addEventListener('change', () => updateStrip(slider.value));
+      document.getElementById('strip-start').addEventListener('click', () => updateStrip(0));
+      document.getElementById('strip-end').addEventListener('click', () => updateStrip(maximumOffset()));
+      document.getElementById('strip-previous').addEventListener('click', () => updateStrip(Number(slider.value) - windowSeconds()));
+      document.getElementById('strip-next').addEventListener('click', () => updateStrip(Number(slider.value) + windowSeconds()));
+      updateStrip(0);
+    })();
+  </script>
 </body>
 </html>

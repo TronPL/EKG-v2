@@ -6,6 +6,7 @@ import numpy as np
 
 from features import rr_intervals_from_times
 from io_utils import iter_ecg_csv_chunks, load_ecg_time_range
+from sampling import validate_regular_sampling
 
 
 class StreamingInputTests(unittest.TestCase):
@@ -33,6 +34,19 @@ class StreamingInputTests(unittest.TestCase):
 
         np.testing.assert_allclose(rr, [0.8, 0.8])
         np.testing.assert_allclose(hr, [75.0, 75.0])
+
+    def test_accepts_interval_exactly_on_jitter_limit(self):
+        # Decimal timestamps can turn a 3 ms interval into a value just below
+        # 3 ms after binary floating-point subtraction.
+        time = np.array([223.884, 223.888, 223.891, 223.895])
+
+        validate_regular_sampling(time, expected_interval=0.004)
+
+    def test_rejects_a_real_sampling_gap(self):
+        time = np.array([0.000, 0.004, 0.012])
+
+        with self.assertRaisesRegex(ValueError, "luki"):
+            validate_regular_sampling(time, expected_interval=0.004)
 
     def test_loads_all_leads_for_a_saved_context(self):
         headers = "time;CH1;CH2;CH3;CH4;CH5;CH6;CH7;CH8\n"

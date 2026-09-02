@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Przegląd zdarzenia EKG</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <div>
+        <h1>Przegląd zdarzenia: {{ event.name }}</h1>
+        <p class="subtitle">
+          Automatyczne oznaczenie z czasu {{ "%.3f"|format(event.start_time) }} s;
+          kontekst {{ "%.1f"|format(context_duration_seconds) }} s.
+        </p>
+      </div>
+      <a href="{{ url_for('analysis_result', analysis_id=analysis_id) }}" class="btn-secondary">&larr; Raport analizy</a>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-list">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <section class="review-notice">
+      <strong>Do oceny przez osobę uprawnioną.</strong>
+      Widok pokazuje sygnał źródłowy i filtrowany; filtracja ani oznaczenie algorytmu nie są rozpoznaniem klinicznym.
+    </section>
+
+    <section class="plot-section">
+      <h2>Odprowadzenie rytmu: {{ rhythm_lead }}</h2>
+      <img src="{{ event_plot_url }}" alt="Sygnał źródłowy i filtrowany w kontekście zdarzenia" class="ecg-plot">
+    </section>
+
+    {% if twelve_lead_plot_url %}
+    <section class="plot-section">
+      <h2>Wszystkie odprowadzenia w tym samym kontekście</h2>
+      <img src="{{ twelve_lead_plot_url }}" alt="12 odprowadzeń EKG w kontekście zdarzenia" class="ecg-plot">
+    </section>
+    {% endif %}
+
+    <section class="review-card">
+      <h2>Weryfikacja</h2>
+      <form method="post" action="{{ url_for('update_event_review', analysis_id=analysis_id, event_id=event.event_id) }}">
+        <label for="review-status">Ocena</label>
+        <select id="review-status" name="review_status">
+          {% for value, label in review_statuses.items() %}
+          <option value="{{ value }}" {% if value == event.review_status %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+
+        <label for="review-note">Notatka</label>
+        <textarea id="review-note" name="review_note" rows="4" maxlength="1000" placeholder="Opcjonalna notatka do przeglądu">{{ event.review_note }}</textarea>
+        <button type="submit" class="btn-primary">Zapisz ocenę</button>
+      </form>
+      {% if event.reviewed_at %}
+      <p class="muted">Ostatni zapis przeglądu: {{ event.reviewed_at }}</p>
+      {% endif %}
+    </section>
+  </div>
+</body>
+</html>

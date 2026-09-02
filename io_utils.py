@@ -183,18 +183,21 @@ def iter_ecg_csv_chunks(path, chunk_rows):
     schema, has_header = _schema_from_first_row(first_chunk)
     last_time = None
 
-    for chunk_number, raw_chunk in enumerate(chain((first_chunk,), chunks)):
-        data = raw_chunk.iloc[1:] if chunk_number == 0 and has_header else raw_chunk
-        if data.empty:
-            continue
+    try:
+        for chunk_number, raw_chunk in enumerate(chain((first_chunk,), chunks)):
+            data = raw_chunk.iloc[1:] if chunk_number == 0 and has_header else raw_chunk
+            if data.empty:
+                continue
 
-        time, signals = _numeric_chunk(data, schema)
-        if len(time) == 0:
-            continue
-        if np.any(np.diff(time) <= 0) or (last_time is not None and time[0] <= last_time):
-            raise ValueError("Kolumna czasu musi rosnąć w kolejnych wierszach.")
-        last_time = time[-1]
-        yield schema, time, signals
+            time, signals = _numeric_chunk(data, schema)
+            if len(time) == 0:
+                continue
+            if np.any(np.diff(time) <= 0) or (last_time is not None and time[0] <= last_time):
+                raise ValueError("Kolumna czasu musi rosnąć w kolejnych wierszach.")
+            last_time = time[-1]
+            yield schema, time, signals
+    finally:
+        chunks.close()
 
 
 def load_ecg_time_range(path, start_time, end_time, chunk_rows):
