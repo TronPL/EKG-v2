@@ -273,6 +273,38 @@ section h2 {
   padding: 0;
 }
 
+.event-group {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.event-group summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  font-weight: 700;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.event-group[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.event-count {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.event-group .event-list {
+  padding: 10px;
+}
+
 .event-item {
   align-items: center;
   background: var(--card);

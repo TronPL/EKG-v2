@@ -13,7 +13,7 @@
         <h1>Przegląd zdarzenia: {{ event.name }}</h1>
         <p class="subtitle">
           Automatyczne oznaczenie z czasu {{ "%.3f"|format(event.start_time) }} s;
-          kontekst {{ "%.1f"|format(context_duration_seconds) }} s.
+          widok rozpoczyna się 5 s przed oznaczeniem, aby ocenić rytm je poprzedzający.
         </p>
       </div>
       <a href="{{ url_for('analysis_result', analysis_id=analysis_id) }}" class="btn-secondary">&larr; Raport analizy</a>
@@ -34,17 +34,31 @@
       Widok pokazuje sygnał źródłowy i filtrowany; filtracja ani oznaczenie algorytmu nie są rozpoznaniem klinicznym.
     </section>
 
-    <section class="plot-section">
-      <h2>Odprowadzenie rytmu: {{ rhythm_lead }}</h2>
-      <img src="{{ event_plot_url }}" alt="Sygnał źródłowy i filtrowany w kontekście zdarzenia" class="ecg-plot">
+    <section class="review-card strip-browser">
+      <h2>Przegląd zapisu: {{ rhythm_lead }}</h2>
+      <p class="muted">Wyświetlany jest tylko wybrany fragment kontekstu tego oznaczenia. Przycisk „Oznaczenie” wraca {{ "%.0f"|format(pre_event_seconds) }} s przed jego początkiem.</p>
+      <div class="strip-controls">
+        <label for="strip-offset">Pozycja w kontekście</label>
+        <input id="strip-offset" type="range" min="{{ context_start_offset }}" max="{{ context_end_offset }}" step="0.1" value="{{ event_focus_offset }}">
+        <input id="strip-offset-number" type="number" min="{{ context_start_offset }}" max="{{ context_end_offset }}" step="0.1" value="{{ event_focus_offset }}">
+        <label for="strip-window">Szerokość okna</label>
+        <select id="strip-window">
+          <option value="10">10 s</option>
+          <option value="30" selected>30 s</option>
+          <option value="60">60 s</option>
+          <option value="120">120 s</option>
+        </select>
+        <div class="strip-buttons">
+          <button type="button" class="btn-secondary button-link" id="strip-context-start">Początek kontekstu</button>
+          <button type="button" class="btn-secondary button-link" id="strip-previous">&larr; Wstecz</button>
+          <button type="button" class="btn-secondary button-link" id="strip-event">Oznaczenie</button>
+          <button type="button" class="btn-secondary button-link" id="strip-next">Dalej &rarr;</button>
+          <button type="button" class="btn-secondary button-link" id="strip-context-end">Koniec kontekstu</button>
+        </div>
+      </div>
+      <p id="strip-range" class="muted" aria-live="polite"></p>
+      <img id="strip-image" alt="Wybrany fragment zapisu EKG dla oznaczenia" class="ecg-plot">
     </section>
-
-    {% if twelve_lead_plot_url %}
-    <section class="plot-section">
-      <h2>Wszystkie odprowadzenia w tym samym kontekście</h2>
-      <img src="{{ twelve_lead_plot_url }}" alt="12 odprowadzeń EKG w kontekście zdarzenia" class="ecg-plot">
-    </section>
-    {% endif %}
 
     <section class="review-card">
       <h2>Weryfikacja</h2>
@@ -65,5 +79,47 @@
       {% endif %}
     </section>
   </div>
+  <script>
+    (() => {
+      const stripUrl = {{ strip_url|tojson }};
+      const contextStart = {{ context_start_offset|tojson }};
+      const contextEnd = {{ context_end_offset|tojson }};
+      const eventStart = {{ event_start_offset|tojson }};
+      const eventEnd = {{ event_end_offset|tojson }};
+      const eventFocus = {{ event_focus_offset|tojson }};
+      const recordStart = {{ record_start_time|tojson }};
+      const slider = document.getElementById('strip-offset');
+      const number = document.getElementById('strip-offset-number');
+      const windowSelect = document.getElementById('strip-window');
+      const image = document.getElementById('strip-image');
+      const rangeLabel = document.getElementById('strip-range');
+
+      function windowSeconds() { return Math.min(Number(windowSelect.value), contextEnd - contextStart); }
+      function maximumOffset() { return Math.max(contextStart, contextEnd - windowSeconds()); }
+
+      function updateStrip(offset) {
+        const safeOffset = Math.min(Math.max(Number(offset) || contextStart, contextStart), maximumOffset());
+        slider.max = maximumOffset();
+        number.max = maximumOffset();
+        slider.value = safeOffset;
+        number.value = safeOffset.toFixed(1);
+        const window = windowSeconds();
+        const end = safeOffset + window;
+        const containsEvent = safeOffset <= eventStart && end >= eventEnd;
+        rangeLabel.textContent = `Fragment: ${safeOffset.toFixed(1)}–${end.toFixed(1)} s od początku zapisu${containsEvent ? ' (obejmuje oznaczenie)' : ''}; czas zapisu ${((recordStart + safeOffset)).toFixed(3)}–${(recordStart + end).toFixed(3)} s.`;
+        image.src = `${stripUrl}?offset=${encodeURIComponent(safeOffset.toFixed(3))}&window=${encodeURIComponent(window)}&v=${Date.now()}`;
+      }
+
+      slider.addEventListener('change', () => updateStrip(slider.value));
+      number.addEventListener('change', () => updateStrip(number.value));
+      windowSelect.addEventListener('change', () => updateStrip(slider.value));
+      document.getElementById('strip-context-start').addEventListener('click', () => updateStrip(contextStart));
+      document.getElementById('strip-context-end').addEventListener('click', () => updateStrip(maximumOffset()));
+      document.getElementById('strip-event').addEventListener('click', () => updateStrip(eventFocus));
+      document.getElementById('strip-previous').addEventListener('click', () => updateStrip(Number(slider.value) - windowSeconds()));
+      document.getElementById('strip-next').addEventListener('click', () => updateStrip(Number(slider.value) + windowSeconds()));
+      updateStrip(eventFocus);
+    })();
+  </script>
 </body>
 </html>

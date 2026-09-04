@@ -63,6 +63,16 @@
         Łączny czas oznaczeń epizodycznych: {% for name, value in report.episode_seconds.items() %}{{ name }} {{ "%.1f"|format(value) }} s{% if not loop.last %}; {% endif %}{% endfor %}.
       </p>
       {% endif %}
+      {% if report.signal_quality %}
+      <p class="muted">
+        Jakość kanałów (użyte fragmenty): {% for lead, quality in report.signal_quality.items() %}{{ lead }} {{ "%.0f"|format(quality.usable_fraction * 100) }}%{% if not loop.last %}; {% endif %}{% endfor %}.
+      </p>
+      {% endif %}
+      {% if report.qrs_detection %}
+      <p class="muted">
+        QRS: zgodność wieloodprowadzeniowa {{ report.qrs_detection.consensus_windows }} okien; tryb awaryjny {{ report.qrs_detection.fallback_windows }} okien.
+      </p>
+      {% endif %}
     </section>
 
     {% if warnings %}
@@ -77,20 +87,31 @@
     <section class="results-section">
       <h2>Oznaczenia do weryfikacji</h2>
       {% if events %}
-      <ul class="event-list">
-        {% for event in events %}
-        <li class="event-item">
-          <div>
-            <strong>{{ event.name }}</strong>
-            <span class="muted">czas: {{ "%.3f"|format(event.start_time) }} s{% if event.rr_interval_seconds is defined %}; RR: {{ "%.3f"|format(event.rr_interval_seconds) }} s{% endif %}</span>
-          </div>
-          <div class="event-actions">
-            <span class="status status-{{ event.review_status }}">{{ review_statuses[event.review_status] }}</span>
-            <a class="btn-link" href="{{ url_for('event_review', analysis_id=analysis_id, event_id=event.event_id) }}">Otwórz zapis</a>
-          </div>
-        </li>
+        {% for group in event_groups %}
+        <details class="event-group"{% if loop.first %} open{% endif %}>
+          <summary>
+            <span>{{ group.name }}</span>
+            <span class="event-count">{{ group.events|length }} {{ "zdarzenie" if group.events|length == 1 else "zdarzenia" if group.events|length in (2, 3, 4) else "zdarzeń" }}</span>
+          </summary>
+          <ul class="event-list">
+            {% for event in group.events %}
+            <li class="event-item">
+              <div>
+                <strong>{{ loop.index }}. oznaczenie</strong>
+                <span class="muted">czas: {{ "%.3f"|format(event.start_time) }} s{% if event.rr_interval_seconds is defined %}; RR: {{ "%.3f"|format(event.rr_interval_seconds) }} s{% endif %}</span>
+                {% if event.morphology is defined %}
+                <span class="muted">; QRS (szacunek): {{ "%.3f"|format(event.morphology.qrs_width_seconds) }} s{% if event.morphology.qrs_shape_similarity is not none %}; podobieństwo morfologii: {{ "%.2f"|format(event.morphology.qrs_shape_similarity) }}{% endif %}{% if event.morphology.p_wave_prominence is not none %}; cecha pre-QRS: {{ "%.2f"|format(event.morphology.p_wave_prominence) }}{% endif %}</span>
+                {% endif %}
+              </div>
+              <div class="event-actions">
+                <span class="status status-{{ event.review_status }}">{{ review_statuses[event.review_status] }}</span>
+                <a class="btn-link" href="{{ url_for('event_review', analysis_id=analysis_id, event_id=event.event_id) }}">Otwórz zapis</a>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
         {% endfor %}
-      </ul>
       {% else %}
       <p class="muted">Algorytm nie oznaczył zdarzeń do weryfikacji.</p>
       {% endif %}

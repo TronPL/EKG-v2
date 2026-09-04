@@ -12,6 +12,23 @@ import numpy as np
 from leads import STANDARD_12_LEAD_ORDER
 
 
+def _short_event_label(name):
+    """Keep rhythm-strip annotations readable when many events share one plot."""
+    labels = (
+        ("PAC/SVEB", "PAC/SVEB"),
+        ("PVC", "PVC"),
+        ("SVT", "SVT"),
+        ("Tachycardia", "Tachy"),
+        ("Bradycardia", "Brady"),
+        ("Pause", "Pauza"),
+        ("Premature beat", "Pob. przedwcz."),
+    )
+    for prefix, short_label in labels:
+        if name.startswith(prefix):
+            return short_label
+    return name
+
+
 def plot_rr(time, r_peaks):
     """Return RR intervals for callers that want to render them themselves."""
     return np.diff(time[r_peaks])
@@ -30,19 +47,21 @@ def plot_ecg(time, ecg, r_peaks=None, events=None, output_path="static/plots/ecg
         for event in events:
             if isinstance(event, Mapping):
                 name = event["name"]
+                label = _short_event_label(name)
                 event_time = event["start_time"]
                 if time[0] <= event_time <= time[-1]:
                     ax.axvline(x=event_time, linestyle="--", alpha=0.5)
                     ax.text(
                         event_time,
                         np.max(ecg),
-                        name,
+                        label,
                         rotation=90,
                         verticalalignment="bottom",
                         fontsize=8,
                     )
             elif isinstance(event, tuple) and len(event) == 2:
                 name, idx = event
+                label = _short_event_label(name)
                 # An RR interval at index i ends at the R-peak i + 1.
                 peak_idx = idx + 1
                 if r_peaks is not None and 0 <= peak_idx < len(r_peaks):
@@ -51,7 +70,7 @@ def plot_ecg(time, ecg, r_peaks=None, events=None, output_path="static/plots/ecg
                     ax.text(
                         event_time,
                         np.max(ecg),
-                        name,
+                        label,
                         rotation=90,
                         verticalalignment="bottom",
                         fontsize=8,

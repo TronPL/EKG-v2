@@ -1,74 +1,91 @@
-# EKG Analyzer
+# EKG Analyzer — preselekcja zapisu Holtera
 
-Prototyp aplikacji webowej do przesiewowej analizy jednoodprowadzeniowych zapisów EKG/Holtera. Aplikacja oczyszcza sygnał, wykrywa załamki R i oznacza zdarzenia według prostych reguł opartych na odstępach RR.
+Prototyp aplikacji webowej do automatycznej preselekcji jedno- i wieloodprowadzeniowych zapisów EKG/Holtera. Aplikacja nie wydaje rozpoznań; tworzy listę fragmentów, które powinny zostać ocenione przez osobę z odpowiednimi kwalifikacjami klinicznymi.
 
-> Wynik nie jest diagnozą medyczną i nie może zastąpić oceny lekarza ani certyfikowanego oprogramowania medycznego.
+> Wynik automatyczny nie jest diagnozą medyczną, nie może służyć jako jedyna podstawa decyzji klinicznej i nie zastępuje certyfikowanego oprogramowania medycznego.
+
+## Co robi obecna wersja
+
+- Wczytuje CSV/TXT z jednym kanałem albo osiem fizycznie rejestrowanych kanałów ADS1298 (`I`, `II`, `V1`–`V6`). Z ośmiu kanałów wylicza też standardowe odprowadzenia pochodne `III`, `aVR`, `aVL` i `aVF` do podglądu.
+- Przetwarza długie zapisy porcjami, zachowując kontekst na granicach bloków i bez wczytywania całego Holtera do pamięci.
+- Sprawdza równomierność znaczników czasu; zapis z lukami lub znacznym jitterem jest odrzucany, aby nie zafałszować odstępów RR.
+- Ocenia jakość sygnału osobno dla każdego fizycznego kanału: płaski sygnał, nadmierny szum próbka-po-próbce i clipping.
+- Dla ADS1298 wykrywa QRS w kanałach o wystarczającej jakości i uzgadnia pozycje QRS między niezależnymi kanałami. Odprowadzenia pochodne nie są niezależnymi głosami. Brak zgodności jest widoczny w raporcie jako użycie trybu awaryjnego odprowadzenia II.
+- Wyznacza pomocnicze cechy pobudzenia: szacowaną szerokość QRS, podobieństwo morfologii i cechę pre-QRS z II/V1. Są one wyłącznie wsparciem dla priorytetyzacji przeglądu.
+- Oznacza w 30-sekundowych, przesuwanych oknach kandydatów do tachykardii, bradykardii, możliwego AF (nieregularne RR bez potwierdzenia P-wave) oraz regularnej szybkiej tachykardii zgodnej z możliwym SVT.
+- Oznacza pauzy oraz wcześniejsze pobudzenia. PVC jest etykietowane wyłącznie przy zmianie morfologii QRS; PAC/SVEB wymaga wąskiego QRS i pomocniczej cechy pre-QRS. W pozostałych przypadkach pozostaje neutralna etykieta „niejednoznaczne”.
+- Pokazuje 30-sekundowy podgląd, przegląd dowolnego fragmentu oraz kontekst zdarzenia. Dla danych ADS1298 widok zdarzenia zawiera również 12-odprowadzeniowe EKG.
+
+## Czego program jeszcze nie zapewnia
+
+Progi jakości, QRS, cech morfologii i epizodów są inżynierskimi ustawieniami testowymi. Nie zostały niezależnie zwalidowane na anotowanych Holterach ani zatwierdzone dla konkretnego rejestratora, populacji i zastosowania. W szczególności AF/AFL, SVT/VT, PVC/PAC oraz załamki P nie mogą być uznawane za wiarygodnie rozpoznane bez oceny klinicznej i programu walidacji.
+
+Szczegółowy plan walidacji i dalszych prac znajduje się w [todo.md](todo.md). Przed użyciem klinicznym wymagane są m.in. definicja przeznaczenia, analiza ryzyka, dane anotowane przez ekspertów, niezależna ocena skuteczności i proces zgodności dla oprogramowania medycznego.
 
 ## Uruchomienie
 
-W katalogu projektu utwórz i aktywuj środowisko wirtualne, a następnie zainstaluj zależności:
+W katalogu projektu utwórz aktywne środowisko Python i zainstaluj zależności:
 
 ```powershell
 python -m venv .venv
-# Najczęściej w Windows:
 .\.venv\Scripts\Activate.ps1
-# Jeśli środowisko zostało utworzone z katalogiem "bin":
-# .\.venv\bin\Activate.ps1
 python -m pip install -r requirements.txt
 python app.py
 ```
 
-Następnie otwórz w przeglądarce adres wyświetlony przez Flask (zwykle `http://127.0.0.1:5000`). W czasie lokalnego rozwoju można włączyć szczegółowy tryb diagnostyczny przez ustawienie `FLASK_DEBUG=1`.
+Następnie otwórz adres pokazany przez aplikację (zwykle `http://127.0.0.1:5000`). Do pracy produkcyjnej w sieci lokalnej zobacz [DEPLOYMENT_WINDOWS.md](DEPLOYMENT_WINDOWS.md).
 
-## Format danych wejściowych
+## Format pliku wejściowego
 
-Wgrywany plik musi być plikiem CSV lub TXT o maksymalnym rozmiarze 20 MB. Pierwsze dwie kolumny muszą zawierać kolejno:
+Akceptowane są pliki CSV i TXT o separatorze `;` lub `,`.
 
-1. czas w sekundach (rosnąco),
-2. amplitudę EKG.
+### Jeden kanał
 
-Akceptowane są separatory `;` i `,`. Wiersz nagłówka oraz dodatkowe kolumny są dopuszczalne i ignorowane. Częstotliwość próbkowania jest wyznaczana z kolumny czasu.
-
-Przykład:
+Pierwsze dwie kolumny to czas w sekundach i amplituda EKG:
 
 ```text
 0.000;0.03289
-0.002;0.00422
-0.004;0.01017
+0.004;0.00422
+0.008;0.01017
 ```
 
-### ADS1298: 8 kanałów → 12 odprowadzeń
+### ADS1298: osiem kanałów i widok 12-odprowadzeniowy
 
-Plik wielokanałowy zawiera dziewięć kolumn: czas i osiem kanałów ADS1298. Dopuszczalne są dwa nagłówki:
-
-```text
-time;CH1;CH2;CH3;CH4;CH5;CH6;CH7;CH8
-```
-
-albo:
+Plik ma dziewięć kolumn: czas i osiem kanałów. Użyj nagłówków `I`, `II`, `V1`–`V6` albo `CH1`–`CH8` w tej kolejności:
 
 ```text
 time;I;II;V1;V2;V3;V4;V5;V6
+0.000;...;...;...;...;...;...;...;...
 ```
 
-Wymagane przypisanie sprzętowe to CH1 = I, CH2 = II oraz CH3–CH8 = V1–V6 względem WCT. Aplikacja oblicza cyfrowo III, aVR, aVL i aVF z I oraz II. Pełny opis połączeń, wzorów i ograniczeń znajduje się w [docs/ads1298_12lead.md](docs/ads1298_12lead.md).
+Wymagane przypisanie sprzętowe to `CH1 = I`, `CH2 = II`, `CH3–CH8 = V1–V6` względem WCT. Pełny opis połączeń i wzorów: [docs/ads1298_12lead.md](docs/ads1298_12lead.md).
 
-## Długie zapisy i Holter 24 h
+## Dane testowe
 
-Silnik przetwarza plik porcjami zamiast wczytywać cały zapis do pamięci, ale nie usuwa źródłowego Holtera — również gdy analiza nie powiedzie się. Plik pozostaje w `uploads/`, a indeks analizy w `analysis/` zapisuje czas i 30-sekundowy kontekst każdego zdarzenia. Do ochrony detekcji R-peaków na granicach bloków używane jest tylko 5 s sygnału przed i po bloku; reguły RR są następnie liczone z pełnej, chronologicznej listy R-peaków. Dzięki temu pauza lub inny rytm przekraczający granicę okien nie jest pomijany ani policzony podwójnie. Załamki R są przechowywane jako czasy, a nie indeksy próbek. Wykres główny pokazuje jedynie pierwsze 30 sekund. Dla zapisu ADS1298 wszystkie 12 odprowadzeń są wyświetlane wyłącznie w kontekście konkretnego automatycznie oznaczonego zdarzenia.
+Dołączony plik [dane/holter_test_30min_100Hz_arytmie.csv](dane/holter_test_30min_100Hz_arytmie.csv) to syntetyczny, 30-minutowy zapis ADS1298 o częstotliwości 100 Hz. Nie reprezentuje danych pacjenta i nie nadaje się do walidacji klinicznej. Służy do testowania importu, przetwarzania blokowego, widoków oraz regresji algorytmu.
 
-Zapis musi mieć równomierne próbkowanie. Luki w czasie lub znaczny jitter są odrzucane, ponieważ bez podziału na segmenty mogłyby zafałszować RR. Domyślny limit uploadu 20 MB nadal chroni aplikację webową. Dla lokalnego lub świadomie zabezpieczonego wdrożenia można go ustawić przed uruchomieniem, np. `$env:MAX_UPLOAD_SIZE_MB=2048`; wymaga to uprzedniego określenia miejsca na dysku, retencji i kontroli dostępu. Nie należy tylko podnosić limitu dla serwera dostępnego z sieci.
+Zaplanowane fragmenty (czas od początku zapisu):
 
-## Obecny zakres analizy
+| Czas | Zawartość syntetyczna | Oczekiwane oznaczenie do przeglądu |
+| --- | --- | --- |
+| 0–300 s | rytm miarowy ok. 75/min | brak epizodu |
+| 300–480 s | rytm miarowy ok. 120/min | tachykardia |
+| 780–1020 s | nieregularne RR | możliwe AF |
+| 1020–1140 s | rytm ok. 46/min | bradykardia |
+| 1200–1290 s | przedwczesne szerokie i wąskie pobudzenia | PVC/PAC-SVEB lub pobudzenie niejednoznaczne |
+| około 1370 s | odstęp RR 2,6 s | pauza |
+| 1500–1560 s | rytm miarowy ok. 171/min | możliwe SVT i tachykardia |
 
-Aplikacja oznacza potencjalne: tachykardię, bradykardię, nieregularność RR sugerującą AF, PVC, PAC/SVEB, SVT, pauzy, bigeminię i trigeminię. To są reguły demonstracyjne, które wymagają walidacji na opisanych danych klinicznych.
+Wynik może różnić się na granicach syntetycznych odcinków, ponieważ algorytm działa zachowawczo i wymaga cech sygnału, a nie tylko harmonogramu generatora. Źródło danych można odtworzyć skryptem [tools/generate_synthetic_holter.py](tools/generate_synthetic_holter.py).
 
-## Struktura
+## Struktura projektu
 
-- `app.py` — interfejs Flask i obsługa plików,
-- `main.py` — przepływ analizy,
-- `arrhythmia/` — reguły detekcji,
-- `dane/` — przykładowe zapisy EKG,
-- `templates/` — widoki strony.
-- `leads.py` — definicje i wyliczanie standardowych 12 odprowadzeń,
-- `docs/ads1298_12lead.md` — konfiguracja ADS1298 dla 12 odprowadzeń.
+- `app.py` — interfejs Flask, zapis wyników i widoki przeglądu;
+- `main.py` — strumieniowy przebieg analizy;
+- `signal_quality.py` — bramka jakości kanałów;
+- `qrs_consensus.py` — uzgadnianie QRS między kanałami;
+- `morphology.py` — pomocnicze cechy pobudzeń;
+- `arrhythmia/episodes.py` — detekcja kandydatów epizodycznych w oknach;
+- `io_utils.py`, `leads.py` — import danych i definicje odprowadzeń;
+- `tests/` — testy importu, odprowadzeń i reguł preselekcji;
+- `dane/` — przykładowe oraz syntetyczne zapisy EKG.

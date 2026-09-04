@@ -34,3 +34,11 @@ TACHY_HR = 100
 BRADY_HR = 50
 PAUSE_SEC = 2.0
 AF_CV_THRESHOLD = 0.15
+
+# Conservative settings for the review-support algorithms below.  They are
+# deliberately configuration, rather than hidden constants, so their values
+# can be locked and validated for a defined intended use.
+SIGNAL_QUALITY_MIN_SCORE = 0.45
+QRS_CONSENSUS_TOLERANCE_SECONDS = 0.08
+RHYTHM_WINDOW_SECONDS = 30.0
+RHYTHM_WINDOW_STEP_SECONDS = 10.0

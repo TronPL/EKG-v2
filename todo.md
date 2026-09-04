@@ -2,15 +2,14 @@
 
 ## Obecne ograniczenia
 
-- Detekcja wykorzystuje głównie odstępy RR; nie klasyfikuje morfologii QRS ani załamków P.
+- Cechy QRS i pre-QRS są jedynie prostymi estymatami do preselekcji; nie zastępują zwalidowanej analizy morfologii ani P-wave.
 - PVC, PAC/SVEB, AF i SVT nie są jeszcze rozpoznawane w sposób wystarczający do zastosowania klinicznego.
-- Cztery odprowadzenia pochodne nie są niezależnymi głosami przy potwierdzaniu R-peaku.
-- Brakuje oceny jakości sygnału oraz pełnych testów na opisanych zapisach 12-odprowadzeniowych.
+- Zgodność QRS wykorzystuje wyłącznie osiem niezależnie mierzonych kanałów ADS1298, ale wymaga walidacji z referencją.
+- Ocena jakości sygnału ma charakter bramki technicznej i wymaga kalibracji na docelowym rejestratorze.
 
 ## Kolejne kroki
 
-1. Wprowadzić ocenę jakości 8 fizycznie mierzonych kanałów i bezpieczne uzgadnianie R-peaków na granicach fragmentów.
-2. Dodać analizę pobudzeń: szerokość i morfologia QRS oraz P-wave, szczególnie w II i V1.
-3. Wykrywać epizody w oknach czasowych, zamiast używać średnich z całych 24 h.
-4. Dodać testy jednostkowe i walidację na anotowanych holterach, także dla zdarzeń na granicach fragmentów.
-5. Przed zastosowaniem klinicznym przeprowadzić niezależną walidację czułości i PPV.
+1. Rozszerzyć estymację P-wave i morfologii QRS o algorytm zwalidowany na wieloodprowadzeniowych Holterach.
+2. Dodać testy integracyjne na anotowanych holterach, także dla zdarzeń na granicach fragmentów.
+3. Ustalić kliniczne definicje epizodów i progi wraz z elektrofizjologiem/kardiologiem.
+4. Przed zastosowaniem klinicznym przeprowadzić niezależną walidację czułości, PPV, błędów per-arytmia i jakości zapisu.

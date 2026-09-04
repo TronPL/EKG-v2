@@ -11,11 +11,10 @@ from werkzeug.utils import secure_filename
 
 from config import ANALYSIS_FOLDER, ALLOWED_EXTENSIONS, ECG_CHUNK_ROWS, MAX_UPLOAD_SIZE_MB, PLOTS_FOLDER, UPLOAD_FOLDER
 from io_utils import load_ecg_time_range
-from leads import build_standard_12_leads
 from main import run
 from preprocessing import preprocess
 from rpeaks import get_rpeaks
-from visualization import plot_12_lead_ecg, plot_ecg, plot_event_review
+from visualization import plot_ecg
 
 
 REVIEW_STATUSES = {
@@ -26,6 +25,7 @@ REVIEW_STATUSES = {
     "uncertain": "Niejednoznaczne",
 }
 ANALYSIS_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+EVENT_REVIEW_PRE_EVENT_SECONDS = 5.0
 
 
 app = Flask(__name__)
@@ -77,6 +77,15 @@ def _events_for_manifest(events):
     return prepared
 
 
+def _group_events_by_name(events):
+    """Keep events of one automatic label together, in their original time order."""
+    groups = {}
+    for event in events:
+        name = event.get("name", "Nieokreślone oznaczenie")
+        groups.setdefault(name, []).append(event)
+    return tuple({"name": name, "events": grouped_events} for name, grouped_events in groups.items())
+
+
 def _event_from_manifest(manifest, event_id):
     event = next(
         (candidate for candidate in manifest.get("event_contexts", []) if candidate.get("event_id") == event_id),
@@ -93,6 +102,7 @@ def _render_analysis_result(manifest):
         "result.html",
         analysis_id=analysis_id,
         events=manifest.get("event_contexts", []),
+        event_groups=_group_events_by_name(manifest.get("event_contexts", [])),
         event_summary=tuple(manifest.get("report", {}).get("candidate_counts", {}).items()),
         report=manifest.get("report", {}),
         warnings=manifest.get("warnings", []),
@@ -217,55 +227,25 @@ def event_review(analysis_id, event_id):
     if source_path.name != manifest["source_file"] or not source_path.is_file():
         abort(404)
 
-    try:
-        _schema, time, recorded_leads = load_ecg_time_range(
-            source_path,
-            event["context_start"],
-            event["context_end"],
-            ECG_CHUNK_ROWS,
-        )
-        leads = build_standard_12_leads(recorded_leads) if manifest["is_twelve_lead"] else recorded_leads
-        rhythm_lead = manifest["analysis_lead"]
-        raw_ecg = leads[rhythm_lead]
-        cleaned_ecg = preprocess(raw_ecg, manifest["sampling_rate"])
-        r_peaks = get_rpeaks(cleaned_ecg, manifest["sampling_rate"])
-    except (OSError, ValueError):
-        app.logger.exception("Could not build ECG event review")
-        abort(500)
-
-    event_plot_filename = f"plots/review_{analysis_id}_{event_id}.png"
-    plot_event_review(
-        time,
-        raw_ecg,
-        cleaned_ecg,
-        r_peaks,
-        event,
-        PLOTS_FOLDER / f"review_{analysis_id}_{event_id}.png",
-        rhythm_lead,
-    )
-
-    twelve_lead_plot_url = None
-    if manifest["is_twelve_lead"]:
-        twelve_lead_plot_filename = f"plots/review_12lead_{analysis_id}_{event_id}.png"
-        plot_12_lead_ecg(
-            time,
-            leads,
-            PLOTS_FOLDER / f"review_12lead_{analysis_id}_{event_id}.png",
-            overview_seconds=float(time[-1] - time[0]),
-            event_time=event["start_time"],
-            event_label=event["name"],
-        )
-        twelve_lead_plot_url = url_for("static", filename=twelve_lead_plot_filename)
+    record_start = float(manifest.get("start_time", 0.0))
+    context_start = max(record_start, float(event["context_start"]))
+    context_end = min(float(manifest["end_time"]), float(event["context_end"]))
+    event_start_offset = float(event["start_time"]) - record_start
 
     return render_template(
         "event_review.html",
         analysis_id=analysis_id,
         event=event,
         review_statuses=REVIEW_STATUSES,
-        event_plot_url=url_for("static", filename=event_plot_filename),
-        twelve_lead_plot_url=twelve_lead_plot_url,
-        rhythm_lead=rhythm_lead,
-        context_duration_seconds=float(time[-1] - time[0]),
+        rhythm_lead=manifest["analysis_lead"],
+        strip_url=url_for("analysis_strip", analysis_id=analysis_id),
+        record_start_time=record_start,
+        context_start_offset=context_start - record_start,
+        context_end_offset=context_end - record_start,
+        event_start_offset=event_start_offset,
+        event_end_offset=float(event["end_time"]) - record_start,
+        event_focus_offset=max(context_start - record_start, event_start_offset - EVENT_REVIEW_PRE_EVENT_SECONDS),
+        pre_event_seconds=EVENT_REVIEW_PRE_EVENT_SECONDS,
     )
 
 
