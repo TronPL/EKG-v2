@@ -6,11 +6,11 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from flask import Flask, abort, flash, redirect, render_template, request, send_file, url_for
-from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
-from config import ANALYSIS_FOLDER, ALLOWED_EXTENSIONS, ECG_CHUNK_ROWS, MAX_UPLOAD_SIZE_MB, PLOTS_FOLDER, UPLOAD_FOLDER
+from config import ANALYSIS_FOLDER, ALLOWED_EXTENSIONS, ECG_CHUNK_ROWS, ECG_REVIEW_AMPLITUDE_LIMIT, UPLOAD_FOLDER
 from io_utils import load_ecg_time_range
+from leads import ADS1298_DIRECT_LEADS, STANDARD_12_LEAD_ORDER, build_standard_12_leads
 from main import run
 from preprocessing import preprocess
 from rpeaks import get_rpeaks
@@ -30,12 +30,10 @@ EVENT_REVIEW_PRE_EVENT_SECONDS = 5.0
 
 app = Flask(__name__)
 app.config.update(
-    MAX_CONTENT_LENGTH=MAX_UPLOAD_SIZE_MB * 1024 * 1024,
     SECRET_KEY=os.environ.get("FLASK_SECRET_KEY", "local-development-key"),
 )
 
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
-PLOTS_FOLDER.mkdir(parents=True, exist_ok=True)
 ANALYSIS_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
@@ -96,6 +94,14 @@ def _event_from_manifest(manifest, event_id):
     return event
 
 
+def _review_leads(manifest):
+    """Expose all 12 leads only when the eight source leads are available."""
+    recorded_leads = tuple(manifest.get("recorded_leads", ()))
+    if set(ADS1298_DIRECT_LEADS).issubset(recorded_leads):
+        return STANDARD_12_LEAD_ORDER
+    return recorded_leads
+
+
 def _render_analysis_result(manifest):
     analysis_id = manifest["analysis_id"]
     return render_template(
@@ -111,7 +117,6 @@ def _render_analysis_result(manifest):
         duration_seconds=manifest["duration_seconds"],
         record_start_time=manifest.get("start_time", 0.0),
         strip_url=url_for("analysis_strip", analysis_id=analysis_id),
-        plot_url=url_for("static", filename=f"plots/ecg_{analysis_id}.png"),
         is_twelve_lead=manifest.get("is_twelve_lead", False),
         analysis_lead=manifest["analysis_lead"],
         recorded_leads=manifest.get("recorded_leads", ()),
@@ -121,7 +126,7 @@ def _render_analysis_result(manifest):
 
 @app.route("/")
 def index():
-    return render_template("index.html", max_upload_mb=MAX_UPLOAD_SIZE_MB)
+    return render_template("index.html")
 
 
 @app.route("/analyze", methods=["POST"])
@@ -141,10 +146,7 @@ def analyze():
     file.save(path)
 
     try:
-        result = run(
-            path,
-            plot_path=PLOTS_FOLDER / f"ecg_{analysis_id}.png",
-        )
+        result = run(path)
     except Exception:
         app.logger.exception("ECG analysis failed")
         flash("Nie udało się przeanalizować pliku. Zapis źródłowy pozostawiono do weryfikacji formatu i jakości danych.", "error")
@@ -198,10 +200,16 @@ def analysis_strip(analysis_id):
     offset = min(max(requested_offset, 0.0), max(0.0, duration - window))
     start_time = record_start + offset
     end_time = start_time + window
+    review_leads = _review_leads(manifest)
+    lead = request.args.get("lead", manifest["analysis_lead"])
+    if lead not in review_leads:
+        abort(400)
 
     try:
         _schema, time, signals = load_ecg_time_range(source_path, start_time, end_time, ECG_CHUNK_ROWS)
-        raw_ecg = signals[manifest["analysis_lead"]]
+        if set(ADS1298_DIRECT_LEADS).issubset(signals):
+            signals = build_standard_12_leads(signals)
+        raw_ecg = signals[lead]
         cleaned_ecg = preprocess(raw_ecg, manifest["sampling_rate"])
         r_peaks = get_rpeaks(cleaned_ecg, manifest["sampling_rate"])
     except (OSError, ValueError):
@@ -214,7 +222,15 @@ def analysis_strip(analysis_id):
         if event["start_time"] <= end_time and event["end_time"] >= start_time
     ]
     image = BytesIO()
-    plot_ecg(time, cleaned_ecg, r_peaks, visible_events, output_path=image, lead_name=manifest["analysis_lead"])
+    plot_ecg(
+        time,
+        cleaned_ecg,
+        r_peaks,
+        visible_events,
+        output_path=image,
+        lead_name=lead,
+        amplitude_limit=ECG_REVIEW_AMPLITUDE_LIMIT,
+    )
     image.seek(0)
     return send_file(image, mimetype="image/png", max_age=0)
 
@@ -238,6 +254,9 @@ def event_review(analysis_id, event_id):
         event=event,
         review_statuses=REVIEW_STATUSES,
         rhythm_lead=manifest["analysis_lead"],
+        review_leads=_review_leads(manifest),
+        derived_leads={"III", "aVR", "aVL", "aVF"},
+        review_amplitude_limit=ECG_REVIEW_AMPLITUDE_LIMIT,
         strip_url=url_for("analysis_strip", analysis_id=analysis_id),
         record_start_time=record_start,
         context_start_offset=context_start - record_start,
@@ -268,12 +287,6 @@ def update_event_review(analysis_id, event_id):
     else:
         flash("Oznaczenie zdarzenia zapisano.", "success")
     return redirect(url_for("event_review", analysis_id=analysis_id, event_id=event_id))
-
-
-@app.errorhandler(RequestEntityTooLarge)
-def file_too_large(_error):
-    flash(f"Plik jest zbyt duży. Maksymalny rozmiar to {MAX_UPLOAD_SIZE_MB} MB.", "error")
-    return redirect(url_for("index"))
 
 
 if __name__ == "__main__":

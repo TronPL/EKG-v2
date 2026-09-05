@@ -14,7 +14,7 @@ Prototyp aplikacji webowej do automatycznej preselekcji jedno- i wieloodprowadze
 - Wyznacza pomocnicze cechy pobudzenia: szacowaną szerokość QRS, podobieństwo morfologii i cechę pre-QRS z II/V1. Są one wyłącznie wsparciem dla priorytetyzacji przeglądu.
 - Oznacza w 30-sekundowych, przesuwanych oknach kandydatów do tachykardii, bradykardii, możliwego AF (nieregularne RR bez potwierdzenia P-wave) oraz regularnej szybkiej tachykardii zgodnej z możliwym SVT.
 - Oznacza pauzy oraz wcześniejsze pobudzenia. PVC jest etykietowane wyłącznie przy zmianie morfologii QRS; PAC/SVEB wymaga wąskiego QRS i pomocniczej cechy pre-QRS. W pozostałych przypadkach pozostaje neutralna etykieta „niejednoznaczne”.
-- Pokazuje 30-sekundowy podgląd, przegląd dowolnego fragmentu oraz kontekst zdarzenia. Dla danych ADS1298 widok zdarzenia zawiera również 12-odprowadzeniowe EKG.
+- Umożliwia przegląd dowolnego fragmentu oraz kontekstu zdarzenia. Przy przeglądaniu zdarzenia można wybrać rejestrowany kanał EKG.
 
 ## Czego program jeszcze nie zapewnia
 

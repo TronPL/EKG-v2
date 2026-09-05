@@ -5,7 +5,6 @@ from arrhythmia.rhythm import detect_pause
 from config import (
     ECG_CHUNK_ROWS,
     ECG_PEAK_CONTEXT_SECONDS,
-    ECG_PREVIEW_SECONDS,
     ECG_REVIEW_CONTEXT_SECONDS,
 )
 from features import rr_intervals_from_times
@@ -17,7 +16,6 @@ from qrs_consensus import fuse_r_peak_times
 from rpeaks import get_rpeaks
 from sampling import validate_regular_sampling
 from signal_quality import assess_signal_quality, summarise_signal_quality
-from visualization import plot_ecg
 
 
 def _sampling_rate_from_time(time):
@@ -33,17 +31,6 @@ def _sampling_rate_from_time(time):
 
 def _validate_regular_sampling(time, expected_interval):
     return validate_regular_sampling(time, expected_interval)
-
-
-def _append_preview(preview_time, preview_leads, time, signals, start_time):
-    if preview_time and preview_time[-1] >= start_time + ECG_PREVIEW_SECONDS:
-        return
-    end = np.searchsorted(time, start_time + ECG_PREVIEW_SECONDS, side="right")
-    if end == 0:
-        return
-    preview_time.extend(time[:end])
-    for lead, values in signals.items():
-        preview_leads.setdefault(lead, []).extend(values[:end])
 
 
 def _detect_window_r_peaks(
@@ -192,7 +179,7 @@ def _automatic_report(r_peak_times, rr, hr, events, duration_seconds, sample_cou
     }
 
 
-def run(path, plot_path="static/plots/ecg_plot.png"):
+def run(path):
     """Analyze a full ECG file in core windows with bilateral context.
 
     The source file remains untouched. Only a small rolling signal buffer,
@@ -204,8 +191,6 @@ def run(path, plot_path="static/plots/ecg_plot.png"):
     start_time = end_time = previous_time = None
     sample_count = 0
     r_peak_times = []
-    preview_time = []
-    preview_recorded_leads = {}
     left_time = np.array([])
     left_signals = {}
     beat_feature_by_time = {}
@@ -229,7 +214,6 @@ def run(path, plot_path="static/plots/ecg_plot.png"):
         if previous_time is not None:
             _validate_regular_sampling(np.array([previous_time, time[0]]), expected_interval)
 
-        _append_preview(preview_time, preview_recorded_leads, time, signals, start_time)
         context_samples = max(1, round(ECG_PEAK_CONTEXT_SECONDS * sampling_rate))
         if next_chunk is None:
             right_time = np.array([])
@@ -307,22 +291,8 @@ def run(path, plot_path="static/plots/ecg_plot.png"):
     if consensus_modes.get("primary_lead_fallback", 0):
         warnings.append("W części zapisu nie uzyskano zgodności wielu odprowadzeń dla QRS; użyto oznaczonego trybu awaryjnego.")
 
-    preview_time = np.asarray(preview_time, dtype=float)
-    preview_recorded_leads = {
-        lead: np.asarray(values, dtype=float) for lead, values in preview_recorded_leads.items()
-    }
     is_twelve_lead = input_mode == "ads1298_8_channel"
-    preview_ecg = preprocess(preview_recorded_leads[analysis_lead], sampling_rate)
-    preview_r_peaks = get_rpeaks(preview_ecg, sampling_rate)
-
-    if plot_path:
-        preview_end = preview_time[-1]
-        preview_events = [event for event in results if event["context_start"] <= preview_end and event["context_end"] >= start_time]
-        plot_ecg(preview_time, preview_ecg, preview_r_peaks, preview_events, output_path=plot_path, lead_name=analysis_lead)
     return {
-        "time": preview_time,
-        "ecg": preview_ecg,
-        "r_peaks": preview_r_peaks,
         "r_peak_times": r_peak_times,
         "r_peak_count": len(r_peak_times),
         "results": results,
@@ -340,7 +310,6 @@ def run(path, plot_path="static/plots/ecg_plot.png"):
         "is_twelve_lead": is_twelve_lead,
         "analysis_lead": analysis_lead,
         "recorded_leads": tuple(recorded_leads),
-        "leads": preview_recorded_leads,
     }
 
 

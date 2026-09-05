@@ -27,7 +27,7 @@ def detect_rhythm_episodes(peak_times, window_seconds=RHYTHM_WINDOW_SECONDS, ste
             records.append(("Bradycardia candidate", start, end))
         cv = float(np.std(rr) / np.mean(rr))
         if len(rr) >= 8 and cv > AF_CV_THRESHOLD:
-            records.append(("Possible AF (irregular RR; no P-wave confirmation)", start, end))
+            records.append(("Possible AF", start, end))
         if len(rr) >= 4 and mean_hr >= 150 and cv < 0.10 and duration >= 3:
             records.append(("SVT candidate (regular tachycardia)", start, end))
         start += step_seconds

@@ -77,6 +77,6 @@ Wartości kanałów muszą być już przeliczone przez firmware z kodu ADC na je
 
 ## Pliki całodobowe
 
-Obecny limit aplikacji wynosi 20 MB, a moduł analizy wczytuje plik w całości do pamięci. To wystarcza do krótkich zapisów testowych, ale nie do pełnego, ośmiokanałowego Holtera 24 h. Obsługa doby wymaga kolejnego etapu: importu porcjami, analizy w oknach czasowych i raportu zbiorczego. Nie należy podnosić samego limitu uploadu bez tej przebudowy, ponieważ przeglądarka i proces Pythona mogłyby zużyć zbyt dużo pamięci.
+Aplikacja nie nakłada limitu rozmiaru przesyłanego pliku. Moduł analizy przetwarza długie zapisy porcjami; rzeczywiste ograniczenia wynikają z dostępnej przestrzeni dyskowej, pamięci i ewentualnych limitów serwera pośredniczącego.
 
 Przed użyciem z osobą badaną należy porównać zapis z referencyjnym symulatorem EKG lub zwalidowanym aparatem 12‑odprowadzeniowym. Nie należy podejmować decyzji klinicznych wyłącznie na podstawie tego programu.

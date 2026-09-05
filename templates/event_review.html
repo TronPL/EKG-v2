@@ -31,12 +31,12 @@
 
     <section class="review-notice">
       <strong>Do oceny przez osobę uprawnioną.</strong>
-      Widok pokazuje sygnał źródłowy i filtrowany; filtracja ani oznaczenie algorytmu nie są rozpoznaniem klinicznym.
+      Widok pokazuje przefiltrowany sygnał wybranego odprowadzenia; filtracja ani oznaczenie algorytmu nie są rozpoznaniem klinicznym.
     </section>
 
     <section class="review-card strip-browser">
-      <h2>Przegląd zapisu: {{ rhythm_lead }}</h2>
-      <p class="muted">Wyświetlany jest tylko wybrany fragment kontekstu tego oznaczenia. Przycisk „Oznaczenie” wraca {{ "%.0f"|format(pre_event_seconds) }} s przed jego początkiem.</p>
+      <h2>Przegląd zapisu</h2>
+      <p class="muted">Wyświetlany jest tylko wybrany fragment kontekstu tego oznaczenia. Przycisk „Oznaczenie” wraca {{ "%.0f"|format(pre_event_seconds) }} s przed jego początkiem. {% if review_amplitude_limit %}Skala pionowa jest wspólna dla wszystkich kanałów tego zapisu: ±{{ "%.3g"|format(review_amplitude_limit) }} w jednostkach pliku.{% endif %}</p>
       <div class="strip-controls">
         <label for="strip-offset">Pozycja w kontekście</label>
         <input id="strip-offset" type="range" min="{{ context_start_offset }}" max="{{ context_end_offset }}" step="0.1" value="{{ event_focus_offset }}">
@@ -47,6 +47,12 @@
           <option value="30" selected>30 s</option>
           <option value="60">60 s</option>
           <option value="120">120 s</option>
+        </select>
+        <label for="strip-lead">Odprowadzenie / kanał</label>
+        <select id="strip-lead">
+          {% for lead in review_leads %}
+          <option value="{{ lead }}" {% if lead == rhythm_lead %}selected{% endif %}>{{ lead }}{% if lead in derived_leads %} (wyliczane){% endif %}</option>
+          {% endfor %}
         </select>
         <div class="strip-buttons">
           <button type="button" class="btn-secondary button-link" id="strip-context-start">Początek kontekstu</button>
@@ -91,6 +97,7 @@
       const slider = document.getElementById('strip-offset');
       const number = document.getElementById('strip-offset-number');
       const windowSelect = document.getElementById('strip-window');
+      const leadSelect = document.getElementById('strip-lead');
       const image = document.getElementById('strip-image');
       const rangeLabel = document.getElementById('strip-range');
 
@@ -107,12 +114,13 @@
         const end = safeOffset + window;
         const containsEvent = safeOffset <= eventStart && end >= eventEnd;
         rangeLabel.textContent = `Fragment: ${safeOffset.toFixed(1)}–${end.toFixed(1)} s od początku zapisu${containsEvent ? ' (obejmuje oznaczenie)' : ''}; czas zapisu ${((recordStart + safeOffset)).toFixed(3)}–${(recordStart + end).toFixed(3)} s.`;
-        image.src = `${stripUrl}?offset=${encodeURIComponent(safeOffset.toFixed(3))}&window=${encodeURIComponent(window)}&v=${Date.now()}`;
+        image.src = `${stripUrl}?offset=${encodeURIComponent(safeOffset.toFixed(3))}&window=${encodeURIComponent(window)}&lead=${encodeURIComponent(leadSelect.value)}&v=${Date.now()}`;
       }
 
       slider.addEventListener('change', () => updateStrip(slider.value));
       number.addEventListener('change', () => updateStrip(number.value));
       windowSelect.addEventListener('change', () => updateStrip(slider.value));
+      leadSelect.addEventListener('change', () => updateStrip(slider.value));
       document.getElementById('strip-context-start').addEventListener('click', () => updateStrip(contextStart));
       document.getElementById('strip-context-end').addEventListener('click', () => updateStrip(maximumOffset()));
       document.getElementById('strip-event').addEventListener('click', () => updateStrip(eventFocus));

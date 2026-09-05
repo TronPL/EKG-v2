@@ -22,6 +22,6 @@ def detect_af(rr):
     cv = np.std(rr) / np.mean(rr)
 
     if cv > AF_CV_THRESHOLD:
-        return ["Possible AF (irregular RR)"]
+        return ["Possible AF"]
 
     return []

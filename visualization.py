@@ -34,11 +34,23 @@ def plot_rr(time, r_peaks):
     return np.diff(time[r_peaks])
 
 
-def plot_ecg(time, ecg, r_peaks=None, events=None, output_path="static/plots/ecg_plot.png", lead_name="II"):
+def plot_ecg(
+    time,
+    ecg,
+    r_peaks=None,
+    events=None,
+    output_path="static/plots/ecg_plot.png",
+    lead_name="II",
+    amplitude_limit=None,
+):
     if not hasattr(output_path, "write"):
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(15, 5))
     ax.plot(time, ecg, label=f"Lead {lead_name}", linewidth=1)
+    if amplitude_limit is not None and np.isfinite(amplitude_limit) and amplitude_limit > 0:
+        ax.set_ylim(-amplitude_limit, amplitude_limit)
+    ax.set_axisbelow(True)
+    ax.grid(which="major", color="#d1d5db", linewidth=0.5, alpha=0.55)
 
     if r_peaks is not None:
         ax.scatter(time[r_peaks], ecg[r_peaks], color="red", s=20, label="R-peaks")
